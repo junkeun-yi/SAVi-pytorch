@@ -105,39 +105,34 @@ class MLP(nn.Module):
         del train # Unused
 
         x = inputs
-
         if self.layernorm == "pre":
             x = self.layernorm_module(x)
-
         x = self.model(x)
-
         if self.residual:
             x = x + inputs
-
         if self.layernorm == "post":
             x = self.layernorm_module(x)
-        
         return x
 
 
-class GRU(nn.Module):
-    """GRU cell as nn.Module."""
+# class GRU(nn.Module):
+#     """GRU cell as nn.Module."""
 
-    def __init__(self,
-                 input_size: int, # FIXME: added for submodules
-                 hidden_size: int, # FIXME: added for submodules
-                ):
-        super().__init__()
+#     def __init__(self,
+#                  input_size: int, # FIXME: added for submodules
+#                  hidden_size: int, # FIXME: added for submodules
+#                 ):
+#         super().__init__()
 
-        # submodules
-        self.gru = nn.GRUCell(input_size, hidden_size)
+#         # submodules
+#         self.gru = nn.GRUCell(input_size, hidden_size)
     
-    def forward(self, carry: Array, inputs: Array,
-                train: bool = False) -> Array:
-        del train # unused
+#     def forward(self, carry: Array, inputs: Array,
+#                 train: bool = False) -> Array:
+#         del train # unused
 
-        carry = self.gru(inputs, carry)
-        return carry
+#         carry = self.gru(inputs, carry)
+#         return carry
 
 
 class Dense(nn.Module):
