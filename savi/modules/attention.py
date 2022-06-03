@@ -236,13 +236,133 @@ class GeneralizedDotProductAttention(nn.Module):
         if self.renormalize_keys:
             # Corresponds to value aggregation via weighted mean (as opposed to sum).
             normalizer = torch.sum(attn, axis=-1, keepdim=True) + self.epsilon
-            attn_normalized = attn / normalizer
+            attn_n = attn / normalizer
+        else:
+            attn_n = attn
 
         if self.attn_weights_only:
-            return attn_normalized
+            return attn_n
 
         # Aggregate values using a weighted sum with weights provided by `attn`
-        updates = torch.einsum("bhqk,bkhd->bqhd", attn_normalized, value)
+        updates = torch.einsum("bhqk,bkhd->bqhd", attn_n, value)
 
         return updates, attn # FIXME: return attention too, as no option for intermediate storing in module in torch.
-        
+
+
+class Transformer(nn.Module):
+    """Transformer with multiple blocks."""
+
+    def __init__(self,
+                 embed_dim: int, # FIXME: added for submodules
+                 num_heads: int,
+                 qkv_size: int,
+                 mlp_size: int,
+                 num_layers: int,
+                 pre_norm: bool = False
+                ):
+        super().__init__()
+
+        self.num_heads = num_heads
+        self.qkv_size = qkv_size
+        self.mlp_size = mlp_size
+        self.num_layes = num_layers
+        self.pre_norm = pre_norm
+
+        # submodules
+        self.model = nn.ModuleList()
+        for lyr in range(self.num_layers):
+            self.model.add_module(
+                name=f"TransformerBlock_{lyr}",
+                module=TransformerBlock(
+                    embed_dim=embed_dim, num_heads=num_heads,
+                    qkv_size=qkv_size, mlp_size=mlp_size,
+                    pre_norm=pre_norm)
+            )
+
+    def forward(self, queries: Array, inputs: Optional[Array] = None,
+                padding_mask: Optional[Array] = None,
+                train: bool = False) -> Array:
+        x = queries
+        for layer in self.model:
+            x = layer(x, inputs, padding_mask, train)
+        return x
+
+
+class TransformerBlock(nn.Module):
+    """Tranformer decoder block."""
+
+    def __init__(self,
+                 embed_dim: int, # FIXME: added for submodules
+                 num_heads: int,
+                 qkv_size: int,
+                 mlp_size: int,
+                 pre_norm: bool = False
+                ):
+        super().__init__()
+
+        self.num_heads = num_heads
+        self.qkv_size = qkv_size
+        self.mlp_size = mlp_size
+        self.pre_norm = pre_norm
+
+        # submodules
+        ## MHA # FIXME: can't do deterministic for torch MHA unlike jax MHA.
+        self.attn_self = nn.MultiheadAttention(
+            embed_dim=embed_dim, num_heads=num_heads)
+        self.attn_cross = nn.MultiheadAttention(
+            embed_dim=embed_dim, num_heads=num_heads)
+        ## mlps
+        self.mlp = misc.MLP(
+            input_size=embed_dim, hidden_size=mlp_size, 
+            output_size=embed_dim)
+        ## layernorms
+        self.layernorm_query = nn.LayerNorm(embed_dim)
+        self.layernorm_inputs = nn.LayerNorm(embed_dim)
+        self.layernorm_mlp = nn.LayerNorm(embed_dim)
+
+    def forward(self, queries: Array, inputs: Optional[Array] = None,
+                padding_mask: Optional[Array] = None,
+                train: bool = False) -> Array:
+        del padding_mask, train # Unused.
+        assert queries.ndim == 3
+
+        if self.pre_norm:
+            # Self-attention on queries.
+            x = self.layernorm_query(queries)
+            x = self.attn_self(query=x, key=x, value=x)
+            x = x + queries
+
+            # Cross-attention on inputs.
+            if inputs is not None:
+                assert inputs.ndim == 3
+                y = self.layernorm_inputs(x)
+                y = self.attn_cross(q=y, k=inputs, v=inputs)
+                y = y + x
+            else:
+                y = x
+
+            # MLP
+            z = self.layernorm_mlp(y)
+            z = self.mlp(z)
+            z = z + y
+        else:
+            # Self-attention on queries.
+            x = queries
+            x = self.attn_self(q=x, k=x, v=x)
+            x = x + queries
+            x = self.layernorm_query(x)
+
+            # Cross-attention on inputs.
+            if inputs is not None:
+                assert inputs.ndim == 3
+                y = self.attn_cross(q=x, k=inputs, v=inputs)
+                y = y + x
+                y = self.layernorm_inputs(y)
+            else:
+                y = x
+
+            # MLP
+            z = self.mlp(y)
+            z = z + y
+            z = self.layernorm_mlp(z)
+        return z

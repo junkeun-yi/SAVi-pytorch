@@ -107,7 +107,8 @@ class MLP(nn.Module):
         x = inputs
         if self.layernorm == "pre":
             x = self.layernorm_module(x)
-        x = self.model(x)
+        for layer in self.model:
+            x = layer(x)
         if self.residual:
             x = x + inputs
         if self.layernorm == "post":
