@@ -1,6 +1,6 @@
 """Video module library."""
 
-# FIXME
+# TODO: recurrent iteration for SAVi
 
 import functools
 from typing import Any, Callable, Dict, Iterable, Mapping, NamedTuple, Optional, Tuple, Union
@@ -123,7 +123,7 @@ class SAVi(nn.Module):
                 conditioning, batch_size=video.shape[0])
         
         # Scan recurrent processor over encoded inputs along sequence dimension.
-        # TODO: make this over t time steps
+        # TODO: make this over t time steps. for loop ?
         corrected_st, predicted_st = self.processor(
             init_state, encoded_inputs, padding_mask)
 
