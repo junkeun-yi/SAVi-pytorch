@@ -1,6 +1,6 @@
 """Miscellaneous modules."""
 
-# DONE
+# FIXME
 
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
@@ -51,12 +51,13 @@ class Readout(nn.Module):
             assert len(self.stop_gradient) == num_targets, (
             f"len(stop_gradient):({len(self.stop_gradient)}) and len(keys):({len(self.keys)}) must match.")
         outputs = {}
+        modules_iter = iter(self.readout_modules)
         for i in range(num_targets):
             if self.stop_gradient is not None and self.stop_gradient[i]:
                 x = x.detach() # FIXME
             else:
                 x = inputs
-            outputs[self.keys[i]] = self.readout_modules[i](x, train)
+            outputs[self.keys[i]] = next(modules_iter)(x, train)
         return outputs
 
 
@@ -136,22 +137,22 @@ class MLP(nn.Module):
 #         return carry
 
 
-class Dense(nn.Module):
-    """Dense layer as nn.Module accepting "train" flag. """
+# class Dense(nn.Module):
+#     """Dense layer as nn.Module accepting "train" flag. """
 
-    def __init__(self,
-                 input_shape: int, # FIXME: added for submodules
-                 features: int,
-                 use_bias: bool = True
-                ):
-        super().__init__()
+#     def __init__(self,
+#                  input_shape: int, # FIXME: added for submodules
+#                  features: int,
+#                  use_bias: bool = True
+#                 ):
+#         super().__init__()
         
-        # submodules
-        self.dense = nn.Linear(input_shape, features, use_bias)
+#         # submodules
+#         self.dense = nn.Linear(input_shape, features, use_bias)
 
-    def forward(self, inputs: Array, train: bool = False) -> Array:
-        del train # Unused.
-        return self.dense(inputs)
+#     def forward(self, inputs: Array, train: bool = False) -> Array:
+#         del train # Unused.
+#         return self.dense(inputs)
 
 
 class PositionEmbedding(nn.Module):
