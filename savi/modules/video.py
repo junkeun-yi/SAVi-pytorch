@@ -45,21 +45,21 @@ class Processor(nn.Module):
         self.corrector = corrector
         self.predictor = predictor
 
-    def forward(self, state: ProcessorState, inputs: Optional[Array],
-                padding_mask: Optional[Array]) -> Tuple[Array, Array]
+    def forward(self, slots: ProcessorState, inputs: Optional[Array],
+                padding_mask: Optional[Array]) -> Tuple[Array, Array]:
         
         # Only apply corrector if we receive new inputs.
         if inputs is not None:
-            corrected_state = self.corrector(state, inputs, padding_mask)
+            corrected_slots = self.corrector(slots, inputs, padding_mask)
         # Otherwise simply use previous state as input for predictor
         else:
-            corrected_state = state
+            corrected_slots = slots
         
         # Always apply predictor (i.e. transition model).
-        predicted_state = self.predictor(corrected_state)
+        predicted_slots = self.predictor(corrected_slots)
 
         # Prepare outputs
-        corrected_state, predicted_state
+        corrected_slots, predicted_slots
 
 
 class SAVi(nn.Module):
@@ -110,34 +110,44 @@ class SAVi(nn.Module):
             padding_mask = torch.ones(video.shape[:-1], dtype=torch.int32)
         
         # video.shape = (batch_size, n_frames, height, width, n_channels)
-        encoded_inputs = self.encoder(video, padding_mask)
+        B, T, H, W, C = video.shape
+        # encoded_inputs = self.encoder(video, padding_mask)
+        # flatten over B * Time and unflatten after to get [B, T, *, F]
+        encoded_inputs = self.encoder(video.flatten(0, 1))
+        encoded_inputs = encoded_inputs.reshape(shape=(B, T, *encoded_inputs.shape[-2:]))
+
         if continue_from_previous_state:
             assert conditioning is not None, (
                 "When continuing from a previous state, the state has to be passed "
                 "via the `conditioning` variable, which cannot be `None`."
             )
-            init_state = conditioning[:, -1] # currently, only use last state.
+            init_slots = conditioning[:, -1] # currently, only use last state.
         else:
             # same as above but without encoded inputs.
-            init_state = self.initializer(
+            init_slots = self.initializer(
                 conditioning, batch_size=video.shape[0])
-        
+
         # Scan recurrent processor over encoded inputs along sequence dimension.
         # TODO: make this over t time steps. for loop ?
-        corrected_st, predicted_st = self.processor(
-            init_state, encoded_inputs, padding_mask)
+        # corrected_st, predicted_st = self.processor(
+        #     init_state, encoded_inputs, padding_mask)
+        # implementation try 1:
+        predicted_slots = init_slots
+        for t in range(T):
+            slots = predicted_slots
+            encoded_frame = encoded_inputs[:, t]
+            corrected_slots, predicted_slots = self.processor(slots, encoded_frame, padding_mask)
 
         # corrected_st.shape = (batch_size, n_frames, ..., n_features)
         # predicted_st.shape = (batch_size, n_frames, ..., n_features)
 
         # Decode latent states.
-        decoder = self.decoder()
-        outputs = decoder(corrected_st) if self.decode_corrected else None
-        outputs_pred = decoder(predicted_st) if self.decode_predicted else None
+        outputs = self.decoder(corrected_slots) if self.decode_corrected else None
+        outputs_pred = self.decoder(predicted_slots) if self.decode_predicted else None
 
         return {
-            "states": corrected_st,
-            "states_pred": predicted_st,
+            "states": corrected_slots,
+            "states_pred": predicted_slots,
             "outputs": outputs,
             "outputs_pred": outputs_pred
         }
