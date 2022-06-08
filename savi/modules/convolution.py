@@ -99,12 +99,21 @@ class CNN(nn.Module):
         if self.output_size:
             self.project_to_output = nn.Linear(features[-1], self.output_size, bias=True)
 
-    def forward(self, inputs: Array, train: bool = False) -> Tuple[Dict[str, Array]]:
-        del train # Unused.
-        
+    def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
+        if channels_last:
+            # inputs.shape = (batch_size, height, width, n_channels)
+            inputs = inputs.permute((0, 3, 1, 2))
+            # inputs.shape = (batch_size, n_channels, height, width)
+
         x = inputs
         for layer in self.cnn_layers:
             x = layer(x)
         if self.output_size:
             x = self.project_to_output(x)
+
+        if channels_last:
+            # x.shape = (batch_size, n_features, h*, w*)
+            x = x.permute((0, 3, 1, 2))
+            # x.shape = (batch_size, h*, w*, n_features)
+
         return x

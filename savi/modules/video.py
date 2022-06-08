@@ -112,9 +112,9 @@ class SAVi(nn.Module):
         # video.shape = (batch_size, n_frames, height, width, n_channels)
         B, T, H, W, C = video.shape
         # encoded_inputs = self.encoder(video, padding_mask)
-        # flatten over B * Time and unflatten after to get [B, T, *, F]
+        # flatten over B * Time and unflatten after to get [B, T, h*, w*, F]
         encoded_inputs = self.encoder(video.flatten(0, 1))
-        encoded_inputs = encoded_inputs.reshape(shape=(B, T, *encoded_inputs.shape[-2:]))
+        encoded_inputs = encoded_inputs.reshape(shape=(B, T, *encoded_inputs.shape[-3:]))
 
         if continue_from_previous_state:
             assert conditioning is not None, (
@@ -137,6 +137,9 @@ class SAVi(nn.Module):
             slots = predicted_slots
             encoded_frame = encoded_inputs[:, t]
             corrected_slots, predicted_slots = self.processor(slots, encoded_frame, padding_mask)
+        # TODO: implementation try 2:
+        # need to get the intermediate slots, not just the last. above doesn't return
+        # all slots over all time.
 
         # corrected_st.shape = (batch_size, n_frames, ..., n_features)
         # predicted_st.shape = (batch_size, n_frames, ..., n_features)

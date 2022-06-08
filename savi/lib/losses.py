@@ -269,10 +269,23 @@ def recon(preds: ArrayTree,
 		loss *= targets.shape[-1]
 	return torch.mean(loss)
 
+def recon_loss(preds: ArrayTree,
+			   targets: ArrayTree,
+			   reduction_type: str = "sum") -> float:
+	"""Reconstruction loss (MSE)."""
+	inputs = preds
+	targets = targets
+	loss = F.mse_loss(inputs, targets, reduction=reduction_type)
+	if reduction_type == "mean":
+		# This rescaling reflects taking the sum over feature axis &
+		# mean over space/time axis
+		loss *= targets.shape[-1]
+	return torch.mean(loss)
 
-def squared_l2_norm(preds: Array, targets: Array,
-					reduction_type: str = "sum") -> Array:
-	"""Squared L2 norm.
-	reduction: in `["sum", "mean"]`
-	"""
-	if reduction_type =="sum"
+
+# def squared_l2_norm(preds: Array, targets: Array,
+# 					reduction_type: str = "sum") -> Array:
+# 	"""Squared L2 norm.
+# 	reduction: in `["sum", "mean"]`
+# 	"""
+# 	if reduction_type =="sum"

@@ -42,7 +42,7 @@ class Readout(nn.Module):
         self.readout_modules = readout_modules
         self.stop_gradient = stop_gradient
 
-    def forward(self, inputs: Array, train: bool = False) -> ArrayTree:
+    def forward(self, inputs: Array) -> ArrayTree:
         num_targets = len(self.keys)
         assert num_targets >= 1, "Need to have at least one target."
         assert len(self.readout_modules) == num_targets, (
@@ -57,7 +57,7 @@ class Readout(nn.Module):
                 x = x.detach() # FIXME
             else:
                 x = inputs
-            outputs[self.keys[i]] = next(modules_iter)(x, train)
+            outputs[self.keys[i]] = next(modules_iter)(x)
         return outputs
 
 
@@ -242,7 +242,7 @@ class PositionEmbedding(nn.Module):
     def forward(self, inputs: Array) -> Array:
 
         # Apply optional transformation on the position embedding.
-        pos_embedding = self.pos_transform(pos_embedding).to(inputs.get_device())
+        pos_embedding = self.pos_transform(self.pos_embedding).to(inputs.get_device())
 
         # Apply position encoding to inputs.
         if self.update_type == "project_add":

@@ -55,7 +55,7 @@ class SpatialBroadcastDecoder(nn.Module):
         x = self.pos_emb(x)
 
         # bb_features.shape = (batch_size * n_slots, h, w, c)
-        bb_features = self.backbone(x, train=train)
+        bb_features = self.backbone(x, channels_last=True)
         spatial_dims = bb_features.shape[-3:-1]
 
         alpha_logits = self.mask_pred( # take each feature separately
@@ -66,8 +66,7 @@ class SpatialBroadcastDecoder(nn.Module):
         alpha_mask = alpha_logits.softmax(dim=1)
 
         # TODO: figure out what to do with readout.
-        targets_dict = self.target_readout(
-            bb_features.reshape(shape=(-1, bb_features.shape[-1])), train)
+        targets_dict = self.target_readout(bb_features)
 
         preds_dict = dict()
         for target_key, channels in targets_dict.items():

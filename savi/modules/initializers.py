@@ -173,6 +173,6 @@ class CoordinateEncoderStateInit(nn.Module):
             x_pos = (inputs[:, :, 1] + inputs[:, :, 3]) / 2
             inputs = torch.stack([y_pos, x_pos], dim=-1)
 
-        slots = self.ebedding_transform(inputs)
+        slots = self.embedding_transform(inputs)
 
         return slots

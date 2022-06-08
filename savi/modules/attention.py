@@ -31,7 +31,6 @@ class SlotAttention(nn.Module):
                  input_size: int, # size of encoded inputs. # FIXME: added for submodules.
                  qkv_size: int, # fixed size, or slot size. # Optional[int] = None,
                  slot_size: int, # fixed size. or same as qkv_size.
-                 num_slots: int, # fixed size.
                  num_iterations: int = 1,
                  mlp_size: Optional[int] = None,
                  epsilon: float = 1e-8,
@@ -42,7 +41,6 @@ class SlotAttention(nn.Module):
         self.input_size = input_size
         self.qkv_size = qkv_size
         self.slot_size = slot_size
-        self.num_slots = num_slots
         self.num_iterations = num_iterations
         self.qkv_size = qkv_size
         self.mlp_size = mlp_size

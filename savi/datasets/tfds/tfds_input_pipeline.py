@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from savi.lib import tfds_preprocessing as preprocessing
+from savi.datasets.tfds import tfds_preprocessing as preprocessing
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
@@ -47,7 +47,7 @@ def preprocess_example(features: Dict[str, tf.Tensor],
 #     """
 
 def create_datasets(
-	config: ml_collections.ConfigDict,
+	args,
 	data_rng: PRNGKey) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
 	"""Create datasets for training and evaluation
 
@@ -55,25 +55,26 @@ def create_datasets(
 	The datasets only contain stateless operations.
 
 	Args:
-		config: Configuration to use.
+		args: Configuration to use.
 		data_rng: JAX PRNGKey for dataset pipeline.
 
 	Returns:
 		A tuple with the training dataset and the evaluation dataset.
 	"""
 	dataset_builder = tfds.builder(
-		config.data.tfds_name, data_dir=config.data.data_dir)
+		args.tfds_name, data_dir=args.data_dir)
 	
-	batch_dims = (config.batch_size)
+	batch_dims = (args.batch_size)
 
 	train_preprocess_fn = functools.partial(
-		preprocess_example, preprocess_strs=config.preproc_train)
+		preprocess_example, preprocess_strs=args.preproc_train)
 	eval_preprocess_fn = functools.partial(
-		preprocess_example, preprocess_strs=config.preproc_eval)
+		preprocess_example, preprocess_strs=args.preproc_eval)
 
-	train_split_name = config.get("train_split", "train")
-	eval_split_name = config.get("validation_split", "validation")
+	train_split_name = args.get("train_split", "train")
+	eval_split_name = args.get("validation_split", "validation")
 
+	# TODO: may need to do something to only run on one host
 	train_split = deterministic_data.get_read_instruction_for_host(
 		train_split_name, dataset_info=dataset_builder.info)
 	train_ds = deterministic_data.create_dataset(
@@ -82,7 +83,7 @@ def create_datasets(
 		rng=data_rng,
 		preprocess_fn=train_preprocess_fn,
 		cache=False,
-		shuffle_buffer_size=config.data.shuffle_buffer_size,
+		shuffle_buffer_size=args.shuffle_buffer_size,
 		batch_dims=batch_dims,
 		num_epochs=None,
 		shuffle=True)
