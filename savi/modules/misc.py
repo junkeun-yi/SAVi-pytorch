@@ -18,14 +18,14 @@ ProcessorState = ArrayTree
 PRNGKey = Array
 NestedDict = Dict[str, Any]
 
-class Identity(nn.Module):
-    """Module that applies the identity function, ignoring any additional args."""
+# class Identity(nn.Module):
+#     """Module that applies the identity function, ignoring any additional args."""
 
-    def __init__(self):
-        super().__init__()
+#     def __init__(self):
+#         super().__init__()
 
-    def forward(self, inputs: Array, **args) -> Array:
-        return inputs
+#     def forward(self, inputs: Array, **args) -> Array:
+#         return inputs
 
 
 class Readout(nn.Module):
@@ -100,7 +100,7 @@ class MLP(nn.Module):
             self.model.add_module(f"dense_mlp_{i}_act", self.activation_fn())
         self.model.add_module("dense_mlp_out", nn.Linear(self.hidden_size, self.output_size))
         if self.activate_output:
-            self.model.add_module("dense_mlp_out_act")
+            self.model.add_module("dense_mlp_out_act", self.activation_fn())
 
     def forward(self, inputs: Array, train: bool = False) -> Array:
         del train # Unused
@@ -180,11 +180,12 @@ class PositionEmbedding(nn.Module):
                  update_type: str,
                  num_fourier_bases: int = 0,
                  gaussian_sigma: float = 1.0,
-                 pos_transform: nn.Module = Identity(),
-                 output_transform: nn.Module = Identity(),
+                 pos_transform: nn.Module = nn.Identity(),
+                 output_transform: nn.Module = nn.Identity(),
                  trainable_pos_embedding: bool = False
                 ):
-        
+        super().__init__()
+
         self.input_shape = input_shape
         self.embedding_type = embedding_type
         self.update_type = update_type
@@ -213,7 +214,7 @@ class PositionEmbedding(nn.Module):
             pos_embedding = utils.create_gradient_grid(input_shape[1:-1], [-1.0, 1.0])
 
         if self.embedding_type == "linear":
-            pass
+            pos_embedding = torch.from_numpy(pos_embedding)
         elif self.embedding_type == "discrete_1d":
             pos_embedding = F.one_hot(torch.from_numpy(pos_embedding), input_shape[-2])
         elif self.embedding_type == "fourier":

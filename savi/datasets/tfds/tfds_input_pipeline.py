@@ -64,15 +64,15 @@ def create_datasets(
 	dataset_builder = tfds.builder(
 		args.tfds_name, data_dir=args.data_dir)
 	
-	batch_dims = (args.batch_size)
+	batch_dims = (args.batch_size,)
 
 	train_preprocess_fn = functools.partial(
 		preprocess_example, preprocess_strs=args.preproc_train)
 	eval_preprocess_fn = functools.partial(
 		preprocess_example, preprocess_strs=args.preproc_eval)
 
-	train_split_name = args.get("train_split", "train")
-	eval_split_name = args.get("validation_split", "validation")
+	train_split_name = "train" # args.get("train_split", "train")
+	eval_split_name = "validation" # args.get("validation_split", "validation")
 
 	# TODO: may need to do something to only run on one host
 	train_split = deterministic_data.get_read_instruction_for_host(

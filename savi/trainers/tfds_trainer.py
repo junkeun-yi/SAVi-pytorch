@@ -29,9 +29,10 @@ import savi.modules as modules
 import savi.lib.losses as losses
 import savi.lib.metrics as metrics
 
-import utils.misc as misc
-import utils.lr_sched as lr_sched
-import utils.lr_decay as lr_decay
+import savi.trainers.utils.misc as misc
+import savi.trainers.utils.lr_sched as lr_sched
+import savi.trainers.utils.lr_decay as lr_decay
+from savi.trainers.utils.misc import NativeScalerWithGradNormCount as NativeScaler
 
 def get_args():
 	parser = argparse.ArgumentParser('TFDS dataset training for SAVi.')
@@ -44,28 +45,43 @@ def get_args():
 	
 	# Training config
 	adrg('--seed', 42, int)
-	adrg('--batch_size', 8, int, 'Batch size per GPU \
+	adrg('--batch_size', 8, int, help='Batch size per GPU \
 		(effective batch size = batch_size * accum_iter * # gpus')
 	# Try to use 8 gpus to get batch size 64, as it is the batch size used in the SAVi code.
 	adrg('--epochs', 50, int)
 	adrg('--accum_iter', 1, int, help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
 	adrg('--num_train_steps', 100000, int)
-	adrg('--device', default='cuda', help='device to use for training / testing')
+	adrg('--device', 'cuda', help='device to use for training / testing')
+	adrg('--num_workers', 10, int)
+
+	# Resuming
+	parser.add_argument('--resume', default='',
+					help='resume from checkpoint')
 	
-	# Misc config
-	adrg('--output_dir', './output_dir', help="path where to save, empty for no saving.")
-	adrg('--log_dir', './output_dir', help="path where to log tensorboard log")
-
-
+	# distributed training parameters
+	parser.add_argument('--world_size', default=1, type=int,
+						help='number of distributed processes')
+	parser.add_argument('--local_rank', default=-1, type=int)
+	parser.add_argument('--dist_on_itp', action='store_true')
+	parser.add_argument('--dist_url', default='env://',
+						help='url used to set up distributed training')
+	
 	# Adam optimizer config
 	adrg('--lr', 2e-4, float)
 	adrg('--warmup_steps', 2500, int)
 	adrg('--max_grad_norm', 0.05, float)
 
-	# Logging Parameters
+	# Logging and Saving config
 	adrg('--log_loss_every_step', 50, int)
 	adrg('--eval_every_steps', 1000, int)
 	adrg('--checkpoint_every_steps', 5000)
+	adrg('--output_dir', './output_dir', help="path where to save, empty for no saving.")
+	adrg('--log_dir', './output_dir', help="path where to log tensorboard log")
+
+	# Misc
+	parser.add_argument('--pin_mem', action='store_true',
+					help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
+
 
 	# Metrics Spec
 	adrg('--metrics', 'loss,ari,ari_nobg')
@@ -82,6 +98,10 @@ def get_args():
 	# Evaluation
 	adrg('--eval_slice_size', 6, int)
 	adrg('--eval_slice_keys', 'video,segmentations,flow,boxes')
+	parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
+	parser.add_argument('--dist_eval', action='store_true', default=False,
+		help='Enabling distributed evaluation (recommended during training for faster monitor')
+
 
 	args = parser.parse_args()
 	# Metrics
@@ -214,7 +234,20 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 	if log_writer is not None:
 		print('log_dir: {}'.format(log_writer.log_dir))
 
-	lr_sched = None
+	# TODO: only first epoch has scheduler, and does step-wise scheduling
+	if epoch == 0:
+		scheduler = lr_sched.get_cosine_schedule_with_warmup(optimizer, args.warmup_steps, args.num_train_steps, num_cycles=1, last_epoch=-1)
+	else:
+		scheduler = None
+
+	print('==============')
+	print()
+	print()
+	print(device)
+	print()
+	print()
+	print('===============')
+
 	for data_iter_step, (video, boxes, flow, padding_mask, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 		
 		if global_step % args.eval_every_steps:
@@ -228,14 +261,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		# SAVi doesn't train on epochs, just on steps.
 		if global_step > args.num_train_steps:
 			break
-
-		# we use a per iteration lr scheduler
-		if epoch == 0 and data_iter_step % accum_iter == 0:
-			# In the SAVi code, they don't train on the whole epoch.
-			lr_decay.linear_warmup(optimizer, data_iter_step, args.warmup_steps)
-		if global_step == args.warmup_steps:
-			lr_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-				optimizer, T_max=args.num_train_steps-args.warmup_steps)
 
 		# need to squeeze because of weird dataset wrapping ...
 		video = video.squeeze(0).to(device, non_blocking=True)
@@ -263,8 +288,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 					update_grad=(data_iter_step + 1) % accum_iter == 0)
 		if (data_iter_step + 1) % accum_iter == 0:
 			optimizer.zero_grad()
-			if lr_sched is not None:
-				lr_sched.step()
+			if scheduler is not None:
+				scheduler.step()
 		
 		torch.cuda.synchronize()
 
@@ -344,9 +369,9 @@ def evaluate(data_loader, model, device, args):
 	return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 def run(args):
-	misc.init_distributed_mode()
+	misc.init_distributed_mode(args)
 
-	print('job dir: {}'.format(os.path.dirname(os.path.realpath)))
+	print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
 	print("{}".format(args).replace(', ', ',\n'))
 
 	device = torch.device(args.device)
@@ -359,18 +384,138 @@ def run(args):
 
 	cudnn.benchmark = True
 
-	dataset_train = build_datasets(args)
+	dataset_train, dataset_val = build_datasets(args)
 
 	if True: # args.distributed:
 		num_tasks = misc.get_world_size()
 		global_rank = misc.get_rank()
-		sampler_train = torch.utils.data.Distributed
+		sampler_train = torch.utils.data.DistributedSampler(
+			dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+		print("Sampler_train")
+		if args.dist_eval:
+			if len(dataset_val) % num_tasks != 0:
+				print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+					  'This will slightly alter validation results as extra duplicate entries are added to achieve '
+					  'equal num of samples per-process.')
+			sampler_val = torch.utils.data.DistributedSampler(
+				dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+		else:
+			sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+	else:
+		sampler_train = torch.utils.data.RandomSampler(dataset_train)
+		sampler_val = troch.utils.data.SequentialSampler(dataset_val)
 
+	if global_rank == 0 and args.log_dir is not None:
+		os.makedirs(args.log_dir, exist_ok=True)
+		log_writer = SummaryWriter(log_dir=args.log_dir)
+	else:
+		log_writer = None
+	
+	data_loader_train = torch.utils.data.DataLoader(
+		dataset_train, sampler=sampler_train,
+		batch_size=1, # HARDCODED because doing something weird with this.
+		num_workers=args.num_workers,
+		pin_memory=args.pin_mem,
+		drop_last=True
+	)
 
-def main(args):
+	data_loader_val = torch.utils.data.DataLoader(
+		dataset_val, sampler=sampler_val,
+		batch_size=1, # HARDCODED because doing something weird with this.
+		num_workers=args.num_workers,
+		pin_memory=args.pin_mem,
+		drop_last=True
+	)
+
+	# Model setup
+	model = build_model(args)
+
+	# TODO: make checkpoint loading
+
+	model.to(device)
+
+	model_without_ddp = model
+	n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+	print("Model = %s" % str(model_without_ddp))
+	print('number of params (M): %.2f' % (n_parameters / 1.e6))
+
+	eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
+
+	print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
+	print("actual lr: %.2e" % args.lr)
+
+	print("accumulate grad iterations: %d" % args.accum_iter)
+	print("effective batch size: %d" % eff_batch_size)
+
+	if args.distributed:
+		model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+		model_without_ddp = model.module
+
+	# build optimizer
+	optimizer = torch.optim.Adam(model_without_ddp.parameters(), lr=args.lr)
+	loss_scaler = NativeScaler()
+
+	# Loss
+	criterion = losses.recon_loss
+	print("criterion = %s" % str(criterion))
+
+	misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+
+	if args.eval:
+		test_stats = evaluate(data_loader_val, model, device)
+		print(test_stats)
+		exit(0)
+
+	print(f"Start training for {args.num_train_steps} steps.")
+	start_time = time.time()
+	max_accuracy = 0.0
+	global_step = 0
+	for epoch in range(0, args.epochs):
+		if args.distributed:
+			data_loader_train.sampler.set_epoch(epoch)
+		step_add, train_stats = train_one_epoch(
+			model, criterion, data_loader_train,
+			optimizer, device, epoch, loss_scaler,
+			global_step, args.max_grad_norm,
+			log_writer, args
+		)
+		global_step += step_add
+		if args.output_dir:
+			misc.save_model(
+				args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+				loss_scaler=loss_scaler, epoch=epoch)
+
+		test_stats = evaluate(data_loader_val, model, device, args)
+		print(test_stats)
+		
+		# log writer stuff.
+
+def main():
 	args = get_args()
 	
 	if args.output_dir:
 		Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 	
 	run(args)
+
+
+def test():
+	# args = get_args()
+	# model = build_model(args)
+	# print(model)
+
+	main()
+
+
+if __name__ == "__main__":
+	test()
+
+
+"""
+
+PYTHONPATH=$PYTHONPATH:./ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 -m torch.distributed.launch --nproc_per_node=8 savi/main.py
+
+PYTHONPATH=$PYTHONPATH:./ CUDA_VISIBLE_DEVICES=0 python3 -m torch.distributed.launch --nproc_per_node=1 savi/main.py
+
+"""

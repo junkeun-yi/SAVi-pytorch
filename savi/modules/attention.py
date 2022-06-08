@@ -111,6 +111,7 @@ class InvertedDotProductAttention(nn.Module):
                  dtype: DType = torch.float32,
                  # precision # not used
                 ):
+        super().__init__()
 
         self.norm_type = norm_type
         self.multi_head = True if num_heads is not None else False

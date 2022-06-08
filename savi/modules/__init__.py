@@ -12,5 +12,5 @@ from .decoders import SpatialBroadcastDecoder
 from .initializers import (GaussianStateInit, ParamStateInit,
                            SegmentationEncoderStateInit,
                            CoordinateEncoderStateInit)
-from .misc import (Identity, MLP, PositionEmbedding, Readout)
+from .misc import (MLP, PositionEmbedding, Readout)
 from .video import (FrameEncoder, Processor, SAVi)

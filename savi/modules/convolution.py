@@ -86,9 +86,10 @@ class CNN(nn.Module):
                     bias=False if norm_type else True))
 
             ### Normalization Layer.
-            self.cnn_layers.add_module(
-                f"{self.norm_type}_norm_{i}",
-                norm_module(features[i+1]))
+            if self.norm_type:
+                self.cnn_layers.add_module(
+                    f"{self.norm_type}_norm_{i}",
+                    norm_module(features[i+1]))
 
             ### Activation Layer
             self.cnn_layers.add_module(
