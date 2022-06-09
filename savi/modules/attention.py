@@ -72,6 +72,8 @@ class SlotAttention(nn.Module):
         """Slot Attention module forward pass."""
         del padding_mask, train # Unused.
 
+        b, n, d = slots.shape
+
         # inputs.shape = (b, n_inputs, input_size).
         inputs = self.layernorm_input(inputs)
         # k.shape = (b, n_inputs, num_heads, qkv_size).
@@ -89,7 +91,10 @@ class SlotAttention(nn.Module):
             updates, attn = self.inverted_attention(query=q, key=k, value=v)
 
             # Recurrent update.
-            slots = self.gru(updates, slots)
+            slots = self.gru(
+                updates.reshape(-1, d), 
+                slots.reshape(-1, d))
+            slots = slots.reshape(b, -1, d)
 
             # Feedforward block with pre-normalization.
             if self.mlp_size is not None:
@@ -220,7 +225,7 @@ class GeneralizedDotProductAttention(nn.Module):
 
         # Temperature normalization.
         qk_features = query.shape[-1]
-        query = query / torch.sqrt(qk_features)
+        query = query / (qk_features ** 0.5) # torch.sqrt(qk_features)
 
         # attn.shape = (batch..., num_heads, q_num, kv_num)
         attn = torch.einsum("bqhd,bkhd->bhqk", query, key)
@@ -308,9 +313,9 @@ class TransformerBlock(nn.Module):
         # submodules
         ## MHA # FIXME: can't do deterministic for torch MHA unlike jax MHA.
         self.attn_self = nn.MultiheadAttention(
-            embed_dim=embed_dim, num_heads=num_heads)
+            embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
         self.attn_cross = nn.MultiheadAttention(
-            embed_dim=embed_dim, num_heads=num_heads)
+            embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
         ## mlps
         self.mlp = misc.MLP(
             input_size=embed_dim, hidden_size=mlp_size, 
@@ -329,14 +334,14 @@ class TransformerBlock(nn.Module):
         if self.pre_norm:
             # Self-attention on queries.
             x = self.layernorm_query(queries)
-            x = self.attn_self(query=x, key=x, value=x)
+            x, _ = self.attn_self(query=x, key=x, value=x)
             x = x + queries
 
             # Cross-attention on inputs.
             if inputs is not None:
                 assert inputs.ndim == 3
                 y = self.layernorm_inputs(x)
-                y = self.attn_cross(q=y, k=inputs, v=inputs)
+                y, _ = self.attn_cross(q=y, k=inputs, v=inputs)
                 y = y + x
             else:
                 y = x
@@ -348,14 +353,15 @@ class TransformerBlock(nn.Module):
         else:
             # Self-attention on queries.
             x = queries
-            x = self.attn_self(q=x, k=x, v=x)
+            x, _ = self.attn_self(query=x, key=x, value=x)
+            # print(x, queries) # TODO: why is this always NaN ?
             x = x + queries
             x = self.layernorm_query(x)
 
             # Cross-attention on inputs.
             if inputs is not None:
                 assert inputs.ndim == 3
-                y = self.attn_cross(q=x, k=inputs, v=inputs)
+                y, _ = self.attn_cross(query=x, key=inputs, value=inputs)
                 y = y + x
                 y = self.layernorm_inputs(y)
             else:

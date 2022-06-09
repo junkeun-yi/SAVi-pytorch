@@ -9,6 +9,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import torchvision.transforms as transforms
+
+import math
 
 Shape = Tuple[int]
 
@@ -28,6 +31,8 @@ class CNN(nn.Module):
                  kernel_size: Sequence[Tuple[int, int]],
                  strides: Sequence[Tuple[int, int]],
                  layer_transpose: Sequence[bool],
+                 transpose_double: bool = True,
+                 padding: Union[Sequence[Tuple[int, int]], str] = None,
                  activation_fn: Callable[[Array], Array] = nn.ReLU,
                  norm_type: Optional[str] = None,
                  axis_name: Optional[str] = None, # Over which axis to aggregate batch stats.
@@ -39,6 +44,8 @@ class CNN(nn.Module):
         self.kernel_size = kernel_size
         self.strides = strides
         self.layer_transpose = layer_transpose
+        self.transpose_double = transpose_double
+        self.padding = padding
         self.activation_fn = activation_fn
         self.norm_type = norm_type
         self.axis_name = axis_name
@@ -46,6 +53,12 @@ class CNN(nn.Module):
 
         # submodules
         num_layers = len(features) - 1 # account for input features (channels)
+
+        if padding is None:
+            padding = 0
+        if isinstance(padding, int) or isinstance(padding, str):
+            padding = [padding for _ in range(num_layers)]
+        self.padding = padding
 
         assert num_layers >= 1, "Need to have at least one layer."
         assert len(kernel_size) == num_layers, (
@@ -78,11 +91,14 @@ class CNN(nn.Module):
 
             ### Convolution Layer.
             convname = "convtranspose" if layer_transpose[i] else "conv"
+            pad = padding[i]
+            if "convtranspose" == convname and isinstance(pad, str):
+                pad = 0
             self.cnn_layers.add_module(
                 f"{convname}_{i}",
                 conv_module[self.layer_transpose[i]](
                     in_channels=features[i], out_channels=features[i+1],
-                    kernel_size=kernel_size[i], stride=strides[i],
+                    kernel_size=kernel_size[i], stride=strides[i], padding=pad,
                     bias=False if norm_type else True))
 
             ### Normalization Layer.
@@ -107,14 +123,19 @@ class CNN(nn.Module):
             # inputs.shape = (batch_size, n_channels, height, width)
 
         x = inputs
-        for layer in self.cnn_layers:
-            x = layer(x)
-        if self.output_size:
-            x = self.project_to_output(x)
+        for name, layer in self.cnn_layers.named_children():
+            layer_fn = lambda x_in: layer(x_in)
+            if "convtranspose" in name and self.transpose_double:
+                output_shape = (x.shape[-2]*2, x.shape[-1]*2)
+                layer_fn = lambda x_in: layer(x_in, output_size=output_shape)
+            x = layer_fn(x)
 
         if channels_last:
             # x.shape = (batch_size, n_features, h*, w*)
-            x = x.permute((0, 3, 1, 2))
+            x = x.permute((0, 2, 3, 1))
             # x.shape = (batch_size, h*, w*, n_features)
+        
+        if self.output_size:
+            x = self.project_to_output(x)
 
         return x

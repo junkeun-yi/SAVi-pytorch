@@ -282,6 +282,17 @@ def recon_loss(preds: ArrayTree,
 		loss *= targets.shape[-1]
 	return torch.mean(loss)
 
+class Recon_Loss(nn.Module):
+
+	def __init__(self):
+		super().__init__()
+		self.l2 = nn.MSELoss(reduction="sum")
+	
+	def forward(self, inputs, targets):
+		# print('in, tar', inputs.shape, targets.shape)
+
+		loss = self.l2(inputs, targets)
+		return torch.mean(loss)
 
 # def squared_l2_norm(preds: Array, targets: Array,
 # 					reduction_type: str = "sum") -> Array:

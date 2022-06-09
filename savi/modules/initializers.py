@@ -164,7 +164,8 @@ class CoordinateEncoderStateInit(nn.Module):
 
             # Encode the background as specified by the background_value.
             background = torch.full(
-                (batch_size, 1, 4), self.background_value, dtype=inputs.dtype)
+                (batch_size, 1, 4), self.background_value, dtype=inputs.dtype,
+                device = inputs.get_device())
 
             inputs = torch.cat([background, inputs], dim=1)
 

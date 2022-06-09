@@ -237,6 +237,7 @@ class PositionEmbedding(nn.Module):
         
         # Add batch dimension.
         pos_embedding = pos_embedding.unsqueeze(0)
+        pos_embedding = pos_embedding.float()
 
         return pos_embedding
     
@@ -251,6 +252,7 @@ class PositionEmbedding(nn.Module):
             # the inputs and add them to the inputs (broadcast along batch dimension).
             # This is roughly equivalent to concatenation of position encodings to the
             # inpus (if followed by a Dense layer), but is slightly more efficient.
+            # (96, 64, 64, 32) + (1, 4, 4, 2)
             x = inputs + self.project_add_dense(pos_embedding)
         elif self.update_type == "concat":
             # Repeat the position embedding along the first (batch) dimension.

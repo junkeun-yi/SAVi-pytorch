@@ -81,12 +81,12 @@ class SpatialBroadcastDecoder(nn.Module):
             decoded_target = torch.sum(masked_channels, dim=1) # Combine target
             preds_dict[target_key] = decoded_target
             
-            if not self.training(): # intermediates for logging.
+            if not self.training: # intermediates for logging.
                 preds_dict[f"eval/{target_key}_slots"] = channels
                 preds_dict[f"eval/{target_key}_masked"] = masked_channels
                 preds_dict[f"eval/{target_key}_combined"] = decoded_target
         
-        if not self.training(): # intermediates for logging.
+        if not self.training: # intermediates for logging.
             preds_dict["eval/alpha_mask"] = alpha_mask
 
         preds_dict["segmentations"] = alpha_logits.argmax(dim=1)

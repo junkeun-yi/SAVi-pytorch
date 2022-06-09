@@ -8,6 +8,8 @@ import jax
 
 from torch.utils.data import Dataset
 
+import os
+
 from savi.datasets.tfds import tfds_input_pipeline
 
 # MoVi dataset
@@ -38,7 +40,7 @@ class MOViData(Dataset):
         self.itr = iter(self.dataset)
 
 class MOViDataByRank(Dataset):
-    def __iniit__(self, tfds_dataset, rank, world_size):
+    def __init__(self, tfds_dataset, rank, world_size):
         self.dataset = tfds_dataset
         self.rank = rank
         self.world_size = world_size
@@ -49,10 +51,13 @@ class MOViDataByRank(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
+        print('hello', self.rank, self.world_size)
         for _ in range(self.world_size):
             # move by stride
             next(self.itr)
         
+        print('retrieving')
+        print(next(self.itr))
         batch = jax.tree_map(np.asarray, next(self.itr))
 
         video = torch.from_numpy(batch['video']) # (B T H W 3)
@@ -60,6 +65,8 @@ class MOViDataByRank(Dataset):
         flow = torch.from_numpy(batch['flow']) # (B T H W 3)
         padding_mask = torch.from_numpy(batch['padding_mask'])
         segmentations = torch.from_numpy(batch['segmentations'])
+
+        print('video', video.shape)
 
         return video, boxes, flow, padding_mask, segmentations
 

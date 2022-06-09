@@ -50,7 +50,9 @@ class Processor(nn.Module):
         
         # Only apply corrector if we receive new inputs.
         if inputs is not None:
-            corrected_slots = self.corrector(slots, inputs, padding_mask)
+            # flatten spatial dims
+            inputs = inputs.flatten(1, 2)
+            corrected_slots, _ = self.corrector(slots, inputs, padding_mask)
         # Otherwise simply use previous state as input for predictor
         else:
             corrected_slots = slots
@@ -59,7 +61,7 @@ class Processor(nn.Module):
         predicted_slots = self.predictor(corrected_slots)
 
         # Prepare outputs
-        corrected_slots, predicted_slots
+        return corrected_slots, predicted_slots
 
 
 class SAVi(nn.Module):
@@ -128,29 +130,58 @@ class SAVi(nn.Module):
                 conditioning, batch_size=video.shape[0])
 
         # Scan recurrent processor over encoded inputs along sequence dimension.
-        # TODO: make this over t time steps. for loop ?
-        # corrected_st, predicted_st = self.processor(
-        #     init_state, encoded_inputs, padding_mask)
-        # implementation try 1:
+        # # TODO: make this over t time steps. for loop ?
+        # # corrected_st, predicted_st = self.processor(
+        # #     init_state, encoded_inputs, padding_mask)
+        # # implementation try 1:
+        # predicted_slots = init_slots
+        # for t in range(T):
+        #     slots = predicted_slots
+        #     encoded_frame = encoded_inputs[:, t]
+        #     corrected_slots, predicted_slots = self.processor(slots, encoded_frame, padding_mask)
+
+        # # corrected_st.shape = (batch_size, n_frames, ..., n_features)
+        # # predicted_st.shape = (batch_size, n_frames, ..., n_features)
+
+        # # Decode latent states.
+        # outputs = self.decoder(corrected_slots) if self.decode_corrected else None
+        # outputs_pred = self.decoder(predicted_slots) if self.decode_predicted else None
+
+        # TODO: implementation try 2:
+        # need to get the intermediate slots, not just the last. above doesn't return
+        # all slots over all time.
+        outputs, outputs_pred = None, None
         predicted_slots = init_slots
         for t in range(T):
             slots = predicted_slots
             encoded_frame = encoded_inputs[:, t]
             corrected_slots, predicted_slots = self.processor(slots, encoded_frame, padding_mask)
-        # TODO: implementation try 2:
-        # need to get the intermediate slots, not just the last. above doesn't return
-        # all slots over all time.
 
-        # corrected_st.shape = (batch_size, n_frames, ..., n_features)
-        # predicted_st.shape = (batch_size, n_frames, ..., n_features)
+            # Decode latent states.
+            if outputs is None and outputs_pred is None:
+                if self.decode_corrected:
+                    outputs = self.decoder(corrected_slots)
+                    for key, value in outputs.items():
+                        outputs[key] = value.unsqueeze(1)
+                if self.decode_predicted:
+                    outputs_pred = self.decoder(predicted_slots)
+                    for key, value in outputs_pred.items():
+                        outputs_pred[key] = value.unsqueeze(1)
+            else:
+                if self.decode_corrected:
+                    out = self.decoder(corrected_slots)
+                    for key, value in outputs.items():
+                        outputs[key] = torch.cat([value, out[key].unsqueeze(1)], dim=1)
+                if self.decode_predicted:
+                    out = self.decoder(predicted_slots)
+                    for key, value in outputs_pred.items():
+                        outputs_pred[key] = torch.cat([value, out[key].unsqueeze(1)], dim=1)
 
-        # Decode latent states.
-        outputs = self.decoder(corrected_slots) if self.decode_corrected else None
-        outputs_pred = self.decoder(predicted_slots) if self.decode_predicted else None
+        # print(video.shape, encoded_inputs.shape, outputs["flow"].shape, slots.shape, init_slots.shape)
 
         return {
-            "states": corrected_slots,
-            "states_pred": predicted_slots,
+            # "states": corrected_slots,
+            # "states_pred": predicted_slots,
             "outputs": outputs,
             "outputs_pred": outputs_pred
         }
@@ -176,7 +207,7 @@ class FrameEncoder(nn.Module):
         del padding_mask # Unused.
 
         # inputs.shape = (batch_size, height, width, n_channels)
-        x = self.backbone(inputs)
+        x = self.backbone(inputs, channels_last=True)
 
         x = self.pos_emb(x)
 

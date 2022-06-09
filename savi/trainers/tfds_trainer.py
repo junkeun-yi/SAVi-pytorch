@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 
 from savi.datasets.tfds import tfds_input_pipeline
-from savi.datasets.tfds.tfds_dataset_wrapper import MOViData
+from savi.datasets.tfds.tfds_dataset_wrapper import MOViData, MOViDataByRank
 import savi.modules as modules
 
 import savi.lib.losses as losses
@@ -212,8 +212,11 @@ def build_datasets(args):
 	rng = jax.random.PRNGKey(args.seed)
 	train_ds, eval_ds = tfds_input_pipeline.create_datasets(args, rng)
 
-	traindata = MOViData(train_ds)
-	evaldata = MOViData(eval_ds)
+	num_tasks = misc.get_world_size()
+	global_rank = misc.get_rank()
+
+	traindata = MOViDataByRank(train_ds, global_rank, num_tasks)
+	evaldata = MOViDataByRank(eval_ds, global_rank, num_tasks)
 
 	return traindata, evaldata
 
@@ -240,14 +243,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 	else:
 		scheduler = None
 
-	print('==============')
-	print()
-	print()
-	print(device)
-	print()
-	print()
-	print('===============')
-
 	for data_iter_step, (video, boxes, flow, padding_mask, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 		
 		if global_step % args.eval_every_steps:
@@ -268,6 +263,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
 		# segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
+
+		print('video', video.shape, end='\r')
 
 		conditioning = boxes # TODO: make this not hardcoded
 
@@ -389,16 +386,18 @@ def run(args):
 	if True: # args.distributed:
 		num_tasks = misc.get_world_size()
 		global_rank = misc.get_rank()
-		sampler_train = torch.utils.data.DistributedSampler(
-			dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-		print("Sampler_train")
+		# sampler_train = torch.utils.data.DistributedSampler(
+		# 	dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+		sampler_train = torch.utils.data.SequentialSampler(dataset_train)
+		# print("Sampler_train")
 		if args.dist_eval:
 			if len(dataset_val) % num_tasks != 0:
 				print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
 					  'This will slightly alter validation results as extra duplicate entries are added to achieve '
 					  'equal num of samples per-process.')
-			sampler_val = torch.utils.data.DistributedSampler(
-				dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+			# sampler_val = torch.utils.data.DistributedSampler(
+			# 	dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+			sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 		else:
 			sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 	else:
@@ -437,7 +436,7 @@ def run(args):
 	model_without_ddp = model
 	n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-	print("Model = %s" % str(model_without_ddp))
+	# print("Model = %s" % str(model_without_ddp))
 	print('number of params (M): %.2f' % (n_parameters / 1.e6))
 
 	eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
@@ -472,8 +471,8 @@ def run(args):
 	max_accuracy = 0.0
 	global_step = 0
 	for epoch in range(0, args.epochs):
-		if args.distributed:
-			data_loader_train.sampler.set_epoch(epoch)
+		# if args.distributed:
+		# 	data_loader_train.sampler.set_epoch(epoch)
 		step_add, train_stats = train_one_epoch(
 			model, criterion, data_loader_train,
 			optimizer, device, epoch, loss_scaler,
@@ -515,6 +514,8 @@ if __name__ == "__main__":
 """
 
 PYTHONPATH=$PYTHONPATH:./ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 -m torch.distributed.launch --nproc_per_node=8 savi/main.py
+
+PYTHONPATH=$PYTHONPATH:./ CUDA_VISIBLE_DEVICES=0,1,2,3 python3 -m torch.distributed.launch --nproc_per_node=4 savi/main.py
 
 PYTHONPATH=$PYTHONPATH:./ CUDA_VISIBLE_DEVICES=0 python3 -m torch.distributed.launch --nproc_per_node=1 savi/main.py
 
