@@ -20,6 +20,11 @@ import torch
 import torch.distributed as dist
 from torch._six import inf
 
+import matplotlib.pyplot as plt
+import numpy as np
+from skimage.color import label2rgb
+
+import wandb
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -338,3 +343,76 @@ def all_reduce_mean(x):
         return x_reduce.item()
     else:
         return x
+
+
+####################################
+# I added these
+
+# TODO: make output path absolute and not assuming an experiments dir
+def save_snapshot(args, model, optimizer, global_step, output_fn):
+    print('saving model.')
+    os.makedirs(os.path.dirname(output_fn), exist_ok=True)
+    payload = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'global_step': global_step,
+        'args': args
+    }
+    torch.save(payload, output_fn)
+    print('saved model.')
+
+
+def load_snapshot(model, optimizer, device, name):
+    print('loading model.')
+    snapshot_path = name
+    payload = torch.load(snapshot_path)
+    model.load_state_dict(payload['model'], map_location=device)
+    optimizer.load_state_dict(payload['optimizer'])
+    print('loaded model.')
+    return payload['args'], payload['global_step']
+
+
+def viz_seg(vid, gt_mask, pr_mask, output_fn, trunk=None, send_to_wandb=False):
+    """
+    Plot the video, gt seg and pred seg masks
+
+    Args:
+        vid: (L H W C)
+        gt_mask: (L H W C)
+        pred_mask: (L H W C)
+        output_fn: save path
+        trunk: truncate temporal dim for viz clarity
+    """
+    if trunk is None:
+        trunk = len(vid)
+    os.makedirs(os.path.dirname(output_fn), exist_ok=True)
+
+    plt.close()
+    fig, ax = plt.subplots(min(len(vid), trunk), 3, dpi=400)
+
+    for t in range(min(len(vid), trunk)):
+        gt_seg = label2rgb(gt_mask[t], vid[t])
+        pred_seg = label2rgb(pr_mask[t], vid[t])
+
+        plot_image(ax[t, 0], vid[t], 'original')
+        plot_image(ax[t, 1], gt_seg, 'gt_seg')
+        plot_image(ax[t, 2], pred_seg, 'pred_seg')
+
+    plt.savefig(output_fn)
+    plt.show()
+
+    if send_to_wandb:
+        wandb.log({
+            "eval/seg":
+            wandb.Image(plt.gcf())
+        })
+        
+def plot_image(ax, img, label=None):
+        ax.imshow(img)
+        ax.axis('off')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if label:
+            # ax.set_title(label, fontsize=3, y=-21)
+            ax.set_xlabel(label, fontsize=3)
+            ax.axis('on')

@@ -7,3 +7,4 @@ ml_collections
 clu
 tensorflow-cpu
 tensorflow-datasets
+wandb

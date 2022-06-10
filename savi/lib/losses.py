@@ -280,7 +280,7 @@ def recon_loss(preds: ArrayTree,
 		# This rescaling reflects taking the sum over feature axis &
 		# mean over space/time axis
 		loss *= targets.shape[-1]
-	return torch.mean(loss)
+	return loss.mean()
 
 class Recon_Loss(nn.Module):
 

@@ -17,10 +17,7 @@ class MOViData(Dataset):
     def __init__(self, tfds_dataset):
         self.dataset = tfds_dataset
         self.itr = iter(self.dataset)
-        # TODO: add local rank and world size
-        # run next(itr) for local rank times
-        # for each getitem call, skip past world size iterations
-        # this will help with the distributeddataparallel
+        # TODO: check if running iter(self.dataset) always returns the same data
     
     def __len__(self):
         return len(self.dataset)
