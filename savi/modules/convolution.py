@@ -129,6 +129,9 @@ class CNN(nn.Module):
                 output_shape = (x.shape[-2]*2, x.shape[-1]*2)
                 layer_fn = lambda x_in: layer(x_in, output_size=output_shape)
             x = layer_fn(x)
+            # if inputs.get_device() == 0:
+            #     print(name, inputs.max().item(), inputs.min().item(),
+            #         x.max().item(), x.min().item())
 
         if channels_last:
             # x.shape = (batch_size, n_features, h*, w*)

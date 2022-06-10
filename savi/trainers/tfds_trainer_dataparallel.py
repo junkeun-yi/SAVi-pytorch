@@ -73,7 +73,7 @@ def get_args():
 	adrg('--tfds_name', "movi_a/128x128:1.0.0", help="Dataset for training/eval")
 	adrg('--data_dir', "/home/junkeun-yi/current/datasets/kubric/")
 	adrg('--batch_size', 64, int, help='Batch size')
-	adrg('--shuffle_buffer_size', 64, help="should be batch_size")
+	# adrg('--shuffle_buffer_size', 64, help="should be batch_size")
 
 	# Model
 	adrg('--max_instances', 10, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
@@ -97,6 +97,7 @@ def get_args():
 	args.num_slots = args.max_instances + 1 # only used for metrics
 	args.logging_min_n_colors = args.max_instances
 	args.eval_slice_keys = [v for v in args.eval_slice_keys.split(',')]
+	args.shuffle_buffer_size = args.batch_size
 
 	# HARDCODED
 	args.targets = {"flow": 3}
@@ -245,17 +246,17 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		print(f"step: {global_step} / {args.num_train_steps}, loss: {loss_value}, clock: {datetime.now()-start_time}", end='\r')
 
-		# if not math.isfinite(loss_value):
-		# 	print("Loss is {}, stopping training".format(loss_value))
-		# 	sys.exit(1)
+		if not math.isfinite(loss_value):
+			print("Loss is {}, stopping training".format(loss_value))
+			sys.exit(1)
 		
 		optimizer.zero_grad()
 		
 		loss.backward()
 		# clip grad norm
 		# TODO: fix grad norm clipping, as it's making the loss NaN
-		# if max_norm is not None:
-		# 	torch.nn.utils.clip_grad_norm(model.parameters(), max_norm)
+		if max_norm is not None:
+			torch.nn.utils.clip_grad_norm(model.parameters(), max_norm)
 		optimizer.step()
 		if scheduler is not None:
 			scheduler.step()
@@ -266,12 +267,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 			# TODO: log the loss (with tensorboard / csv)
 			if args.wandb:
 				wandb.log({'train/loss': loss_value})
+			print()
 		if global_step % args.eval_every_steps == 0:
 			evaluate(val_loader, model, criterion, device, args, global_step)
 		if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
-			print('saving')
-			print('saving')
-			print('saving')
 			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
 		# SAVi doesn't train on epochs, just on steps.
 		if global_step > args.num_train_steps:
@@ -335,10 +334,19 @@ def evaluate(data_loader, model, criterion, device, args, name="test"):
 
 		# visualize first 3 iterations
 		if i_batch < 3:
-			misc.viz_seg(video[0].byte().cpu().numpy(), gt_seg[0], pr_seg[0], 
-				f"./experiments/{args.exp}/viz_seg/{name}_{i_batch}.png", 
-				send_to_wandb=True if args.wandb else False)
-			# TODO: visualize slots
+			# visualize attention
+			attn = outputs['attention'][0].squeeze(1)
+			attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
+			misc.viz_slots(video[0].cpu().numpy(), 
+				flow[0].cpu().numpy(), outputs['outputs']['flow'][0].cpu().numpy(),
+				attn.cpu().numpy(),
+				f"./experiments/{args.exp}/viz_slots/{name}_{i_batch}.png",
+				trunk=6, send_to_wandb=True if args.wandb else False)
+
+			# visualize segmentation
+			misc.viz_seg(video[0].cpu().numpy(), gt_seg[0], pr_seg[0], 
+				f"./experiments/{args.exp}/viz_seg/{name}_{i_batch}.png",
+				trunk=3, send_to_wandb=True if args.wandb else False)
 
 	final_loss = loss_value
 	final_ari = ari_running['total'] / ari_running['count']
@@ -387,7 +395,7 @@ def run(args):
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	if args.resume_from is not None:
-		args, resume_step = misc.load_snapshot(model, optimizer, device, args.resume_from)
+		_, resume_step = misc.load_snapshot(model, optimizer, device, args.resume_from)
 
 	n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 	# print("Model = %s" % str(model_without_ddp))
@@ -407,9 +415,11 @@ def run(args):
 	start_time = datetime.now()
 	global_step = resume_step if args.resume_from is not None else 0
 
-	# sanity checks
-	evaluate(val_loader, model, criterion, device, args, f"epoch_0")
-	misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/0.pt')
+	# eval only
+	if args.eval:
+		assert isinstance(args.resume_from, str), "no snapshot given."
+		evaluate(val_loader, model, criterion, device, args, f"eval")
+		sys.exit(1)
 
 	for epoch in range(args.epochs):
 		step_add, loss = train_one_epoch(

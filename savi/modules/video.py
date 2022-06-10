@@ -52,7 +52,7 @@ class Processor(nn.Module):
         if inputs is not None:
             # flatten spatial dims
             inputs = inputs.flatten(1, 2)
-            corrected_slots, _ = self.corrector(slots, inputs, padding_mask)
+            corrected_slots, attn = self.corrector(slots, inputs, padding_mask)
         # Otherwise simply use previous state as input for predictor
         else:
             corrected_slots = slots
@@ -61,7 +61,7 @@ class Processor(nn.Module):
         predicted_slots = self.predictor(corrected_slots)
 
         # Prepare outputs
-        return corrected_slots, predicted_slots
+        return corrected_slots, predicted_slots, attn
 
 
 class SAVi(nn.Module):
@@ -150,12 +150,12 @@ class SAVi(nn.Module):
         # TODO: implementation try 2:
         # need to get the intermediate slots, not just the last. above doesn't return
         # all slots over all time.
-        outputs, outputs_pred = None, None
+        outputs, outputs_pred, attn = None, None, None
         predicted_slots = init_slots
         for t in range(T):
             slots = predicted_slots
             encoded_frame = encoded_inputs[:, t]
-            corrected_slots, predicted_slots = self.processor(slots, encoded_frame, padding_mask)
+            corrected_slots, predicted_slots, attn_t = self.processor(slots, encoded_frame, padding_mask)
 
             # Decode latent states.
             if outputs is None and outputs_pred is None:
@@ -176,6 +176,10 @@ class SAVi(nn.Module):
                     out = self.decoder(predicted_slots)
                     for key, value in outputs_pred.items():
                         outputs_pred[key] = torch.cat([value, out[key].unsqueeze(1)], dim=1)
+            if attn == None:
+                attn = attn_t.unsqueeze(1)
+            else:
+                attn = torch.cat([attn, attn_t.unsqueeze(1)], dim=1)
 
         # print(video.shape, encoded_inputs.shape, outputs["flow"].shape, slots.shape, init_slots.shape)
 
@@ -183,7 +187,8 @@ class SAVi(nn.Module):
             # "states": corrected_slots,
             # "states_pred": predicted_slots,
             "outputs": outputs,
-            "outputs_pred": outputs_pred
+            "outputs_pred": outputs_pred,
+            "attention": attn
         }
 
 

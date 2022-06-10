@@ -48,9 +48,12 @@ class SlotAttention(nn.Module):
         self.num_heads = num_heads
 
         # shared modules
-        self.w_q = nn.Parameter(torch.empty(size=(num_heads, slot_size, qkv_size)))
-        self.w_k = nn.Parameter(torch.empty(size=(num_heads, input_size, qkv_size)))
-        self.w_v = nn.Parameter(torch.empty(size=(num_heads, input_size, qkv_size)))
+        self.w_q = nn.Parameter(torch.Tensor(num_heads, slot_size, qkv_size))
+        self.w_k = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
+        self.w_v = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
+        nn.init.xavier_normal_(self.w_q)
+        nn.init.xavier_normal_(self.w_k)
+        nn.init.xavier_normal_(self.w_v)
 
         self.layernorm_input = nn.LayerNorm(input_size)
         self.layernorm_q = nn.LayerNorm(qkv_size)
@@ -130,7 +133,8 @@ class InvertedDotProductAttention(nn.Module):
             epsilon=self.epsilon,
             dtype=self.dtype)
         if self.multi_head:
-            self.w_o = nn.Parameter(torch.empty(size=(num_heads, input_size, output_size)))
+            self.w_o = nn.Parameter(torch.Tensor(num_heads, input_size, output_size))
+            nn.init.xavier_normal_(self.w_o)
         if self.norm_type == "layernorm":
             self.layernorm = nn.LayerNorm(output_size)
 
