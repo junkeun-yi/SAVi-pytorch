@@ -1,6 +1,6 @@
 """Video module library."""
 
-# TODO: recurrent iteration for SAVi
+# FIXME
 
 import functools
 from typing import Any, Callable, Dict, Iterable, Mapping, NamedTuple, Optional, Tuple, Union
@@ -150,6 +150,8 @@ class SAVi(nn.Module):
         # TODO: implementation try 2:
         # need to get the intermediate slots, not just the last. above doesn't return
         # all slots over all time.
+
+        # TODO: do the decoding all at once instead of per-timestep like done here.
         outputs, outputs_pred, attn = None, None, None
         predicted_slots = init_slots
         for t in range(T):

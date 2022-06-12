@@ -43,7 +43,7 @@ class SpatialBroadcastDecoder(nn.Module):
         # submodules
         self.mask_pred = nn.Linear(self.backbone.features[-1], 1)
 
-    def forward(self, slots: Array, train: bool = False) -> Array:
+    def forward(self, slots: Array) -> Array:
 
         batch_size, n_slots, n_features = slots.shape
 

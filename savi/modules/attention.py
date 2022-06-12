@@ -70,10 +70,9 @@ class SlotAttention(nn.Module):
                 output_size=slot_size, layernorm="pre", residual=True)
 
     def forward(self, slots: Array, inputs: Array,
-                padding_mask: Optional[Array] = None,
-                train: bool = False) -> Array:
+                padding_mask: Optional[Array] = None) -> Array:
         """Slot Attention module forward pass."""
-        del padding_mask, train # Unused.
+        del padding_mask # Unused.
 
         b, n, d = slots.shape
 

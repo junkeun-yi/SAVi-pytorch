@@ -422,7 +422,7 @@ def viz_seg(vid, gt_mask, pr_mask, output_fn, trunk=None, send_to_wandb=False):
 		})
 
 
-def viz_slots(vid, gt_flow, pr_flow, mask, output_fn, trunk=None, send_to_wandb=False):
+def viz_slots_flow(vid, gt_flow, pr_flow, mask, output_fn, trunk=None, send_to_wandb=False):
 	"""
 	Plot the video and slots
 
@@ -456,7 +456,45 @@ def viz_slots(vid, gt_flow, pr_flow, mask, output_fn, trunk=None, send_to_wandb=
 
 	if send_to_wandb:
 		wandb.log({
-			"eval/slots":
+			"eval/slots_flow":
+			wandb.Image(plt.gcf())
+		})
+
+
+def viz_slots_frame_pred(vid, pred_frame, mask, output_fn, trunk=None, send_to_wandb=False):
+	"""
+	Plot the video and slots
+
+	Args:
+		vid, pred_frame: (L H W C)
+		mask: (L num_objects H W)
+		trunk: truncate temporal dim for viz clarity
+	"""
+	if trunk is None:
+		trunk = len(vid)
+	T = min(len(vid), trunk)
+	n_objs = mask.shape[1]
+	os.makedirs(os.path.dirname(output_fn), exist_ok=True)
+
+	slots = vid[:, np.newaxis, :, :, :] * mask[:, :, :, :, np.newaxis]
+
+	plt.close()
+	fig, ax = plt.subplots(T, n_objs+2, dpi=400)
+
+	for t in range(T):
+		
+		plot_image(ax[t, 0], vid[t], 'frame')
+		plot_image(ax[t, 1], pred_frame[t], 'pred_frame')
+
+		for obj in range(2, n_objs+2):
+			plot_image(ax[t, obj], slots[t, obj-2], f'slot {obj-1}')
+	
+	plt.savefig(output_fn)
+	plt.show()
+
+	if send_to_wandb:
+		wandb.log({
+			"eval/slots_pred_frame":
 			wandb.Image(plt.gcf())
 		})
 

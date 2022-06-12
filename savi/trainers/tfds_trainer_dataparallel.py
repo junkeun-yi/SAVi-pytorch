@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
 from typing import Iterable, Optional
 
@@ -16,22 +17,22 @@ import os
 import sys
 import argparse
 from datetime import datetime
-import time
-import json
 from pathlib import Path
 import wandb
 
 from savi.datasets.tfds import tfds_input_pipeline
 from savi.datasets.tfds.tfds_dataset_wrapper import MOViData
 import savi.modules as modules
-
-import savi.lib.losses as losses
-import savi.lib.metrics as metrics
+import savi.modules_flow as modules_flow
 
 import savi.trainers.utils.misc as misc
 import savi.trainers.utils.lr_sched as lr_sched
 import savi.trainers.utils.lr_decay as lr_decay
-from savi.trainers.utils.misc import NativeScalerWithGradNormCount as NativeScaler
+
+processors_dict = {
+	'savi': modules.savi_build_modules,
+	'flow': modules_flow.flow_build_modules
+}
 
 def get_args():
 	parser = argparse.ArgumentParser('TFDS dataset training for SAVi.')
@@ -62,6 +63,7 @@ def get_args():
 	adrg('--exp', 'test', help="experiment name")
 	parser.add_argument('--no_snap', action='store_true', help="don't snapshot model")
 	parser.add_argument('--wandb', action='store_true', help="wandb logging")
+	adrg('--group', None, help="wandb logging group")
 
 	# Loading model
 	adrg('--resume_from', None, str, help="absolute path of experiment snapshot")
@@ -78,6 +80,7 @@ def get_args():
 	# Model
 	adrg('--max_instances', 10, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
 	adrg('--model_size', 'small', help="How to prepare data and model architecture.")
+	adrg('--model_type', 'savi', help="model type")
 
 	# Evaluation
 	adrg('--eval_slice_size', 6, int)
@@ -98,6 +101,8 @@ def get_args():
 	args.logging_min_n_colors = args.max_instances
 	args.eval_slice_keys = [v for v in args.eval_slice_keys.split(',')]
 	args.shuffle_buffer_size = args.batch_size
+	# if not args.group:
+	# 	args.group = f"{args.model_type}_{args.tfds_name.split('/')[0]}"
 
 	# HARDCODED
 	args.targets = {"flow": 3}
@@ -123,78 +128,6 @@ def get_args():
 	
 	return args
 
-def build_model(args):
-	if args.model_size == "small":
-		slot_size = 128
-		num_slots = args.num_slots
-		# Encoder
-		encoder = modules.FrameEncoder(
-			backbone=modules.CNN(
-				features=[3, 32, 32, 32, 32],
-				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
-				strides=[(1, 1), (1, 1), (1, 1), (1, 1)],
-				padding="same",
-				layer_transpose=[False, False, False, False]),
-			pos_emb=modules.PositionEmbedding(
-				input_shape=(args.batch_size, 64, 64, 32),
-				embedding_type="linear",
-				update_type="project_add",
-				output_transform=modules.MLP(
-					input_size=32,
-					hidden_size=64,
-					output_size=32,
-					layernorm="pre")))
-		# Corrector
-		corrector = modules.SlotAttention(
-			input_size=32, # TODO: validate, should be backbone output size
-			qkv_size=128,
-			slot_size=slot_size,
-			num_iterations=1)
-		# Predictor
-		predictor = modules.TransformerBlock(
-			embed_dim=slot_size,
-			num_heads=4,
-			qkv_size=128,
-			mlp_size=256)
-		# Initializer
-		initializer = modules.CoordinateEncoderStateInit(
-			embedding_transform=modules.MLP(
-				input_size=4, # bounding boxes have feature size 4
-				hidden_size=256,
-				output_size=slot_size,
-				layernorm=None),
-			prepend_background=True,
-			center_of_mass=False)
-		# Decoder
-		decoder = modules.SpatialBroadcastDecoder(
-			resolution=(8,8), # Update if data resolution or strides change.
-			backbone=modules.CNN(
-				features=[slot_size, 64, 64, 64, 64],
-				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
-				strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
-				padding=[2, 2, 2, "same"],
-				transpose_double=True,
-				layer_transpose=[True, True, True, False]),
-			pos_emb=modules.PositionEmbedding(
-				input_shape=(args.batch_size, 8, 8, 128),
-				embedding_type="linear",
-				update_type="project_add"),
-			target_readout=modules.Readout(
-				keys=list(args.targets),
-				readout_modules=nn.ModuleList([
-					nn.Linear(64, out_features) for out_features in args.targets.values()])))
-		# SAVi Model
-		model = modules.SAVi(
-			encoder=encoder,
-			decoder=decoder,
-			corrector=corrector,
-			predictor=predictor,
-			initializer=initializer,
-			decode_corrected=True,
-			decode_predicted=False)
-	else:
-		raise NotImplementedError
-	return model
 
 def build_datasets(args):
 	rng = jax.random.PRNGKey(args.seed)
@@ -208,7 +141,8 @@ def build_datasets(args):
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 					data_loader: Iterable, optimizer: torch.optim.Optimizer,
 					device: torch.device, epoch: int, global_step, start_time, 
-					max_norm: Optional[float] = None, args=None, val_loader=None):
+					max_norm: Optional[float] = None, args=None, 
+					val_loader=None, evaluator=None):
 	model.train(True)
 
 	# TODO: this is needed ... cuz using hack tfds wrapper.
@@ -226,20 +160,20 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		scheduler = None
 
 	loss = None
-	for data_iter_step, (video, boxes, flow, padding_mask, _) in enumerate(data_loader):
-
+	for data_iter_step, (video, boxes, flow, padding_mask, segmentations) in enumerate(data_loader):
 		# need to squeeze because of weird dataset wrapping ...
 		video = video.squeeze(0).to(device, non_blocking=True) # [64, 6, 64, 64, 3]
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
-		# segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
+		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
+		batch = (video, boxes, flow, padding_mask, segmentations)
 
 		conditioning = boxes # TODO: make this not hardcoded
 
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
-		loss = criterion(outputs["outputs"]["flow"], flow)
+		loss = criterion(outputs, batch)
 		loss = loss.mean() # mean over devices
 
 		loss_value = loss.item()
@@ -261,15 +195,20 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		if scheduler is not None:
 			scheduler.step()
 
+		if args.wandb:
+			wandb.log({'train/loss': loss_value})
+
 		# global stepper.
 		global_step += 1
-		if global_step % args.log_loss_every_step == 0:
-			# TODO: log the loss (with tensorboard / csv)
-			if args.wandb:
-				wandb.log({'train/loss': loss_value})
-			print()
+		# if global_step % args.log_loss_every_step == 0:
+		# 	# TODO: log the loss (with tensorboard / csv)
+		# 	if args.wandb:
+		# 		wandb.log({'train/loss': loss_value})
+		# 	print()
+		# 	print()
 		if global_step % args.eval_every_steps == 0:
-			evaluate(val_loader, model, criterion, device, args, global_step)
+			print()
+			evaluate(val_loader, model, criterion, evaluator, device, args, global_step)
 		if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
 			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
 		# SAVi doesn't train on epochs, just on steps.
@@ -280,7 +219,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, criterion, device, args, name="test"):
+def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"):
 
 	# switch to evaluation mode
 	model.eval()
@@ -295,35 +234,24 @@ def evaluate(data_loader, model, criterion, device, args, name="test"):
 	ari_running = {'total': 0, 'count': 0}
 	ari_nobg_running = {'total': 0, 'count': 0}
 	for i_batch, (video, boxes, flow, padding_mask, segmentations) in enumerate(data_loader):
-		video = video.squeeze(0).to(device, non_blocking=True)
+		# need to squeeze because of weird dataset wrapping ...
+		video = video.squeeze(0).to(device, non_blocking=True) # [64, 6, 64, 64, 3]
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
 		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
+		batch = (video, boxes, flow, padding_mask, segmentations)
 
 		conditioning = boxes # TODO: don't hardcode
 
 		# compute output
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
-		loss = criterion(outputs["outputs"]["flow"], flow)
+		loss = criterion(outputs, batch)
 		loss = loss.mean() # mean over devices
 		loss_value = loss.item()
 
-		pr_seg = outputs['outputs']['segmentations'].squeeze(-1).int().cpu().numpy()
-		gt_seg = segmentations.int().cpu().numpy()
-		input_pad = padding_mask.cpu().numpy()
-
-		ari_bg = metrics.Ari.from_model_output(
-			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg, 
-			predicted_max_num_instances=args.num_slots, 
-			ground_truth_max_num_instances=args.max_instances + 1, # add bg,
-			padding_mask=input_pad, ignore_background=False)
-		ari_nobg = metrics.Ari.from_model_output(
-			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg, 
-			predicted_max_num_instances=args.num_slots, 
-			ground_truth_max_num_instances=args.max_instances + 1, # add bg,
-			padding_mask=input_pad, ignore_background=True)
+		ari_bg, ari_nobg = evaluator(outputs, batch, args)
 
 		for k, v in ari_bg.items():
 			ari_running[k] += v.item()
@@ -334,17 +262,37 @@ def evaluate(data_loader, model, criterion, device, args, name="test"):
 
 		# visualize first 3 iterations
 		if i_batch < 3:
+			if args.model_type == "savi":
+				attn = outputs['attention'][0].squeeze(1)
+				attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
+				pr_flow = outputs['outputs']['flow'][0]
+				pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
+			else:
+				pr_flow = outputs[2][0]
+				T, H, W, _ = pr_flow.shape
+				pr_flow = torchvision.utils.flow_to_image(
+					pr_flow.permute(0,3,1,2)).permute(0,2,3,1).reshape(shape=(T, H, W, 3))
+				attn = outputs[4][0]
+				attn = attn.reshape(shape=(T, H, W, args.num_slots)).permute(0, 3, 1, 2)
+				pr_seg = outputs[1][0].squeeze(-1)
+				pr_vid = outputs[0][0]
+				pr_vid = torch.clamp(pr_vid, 0.0, 1.0)
+			pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
 			# visualize attention
-			attn = outputs['attention'][0].squeeze(1)
-			attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
-			misc.viz_slots(video[0].cpu().numpy(), 
-				flow[0].cpu().numpy(), outputs['outputs']['flow'][0].cpu().numpy(),
-				attn.cpu().numpy(),
-				f"./experiments/{args.exp}/viz_slots/{name}_{i_batch}.png",
+			misc.viz_slots_flow(video[0].cpu().numpy(), 
+				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
+				f"./experiments/{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
 				trunk=6, send_to_wandb=True if args.wandb else False)
-
+			# visualize attention again
+			if args.model_type == "flow":
+				misc.viz_slots_frame_pred(video[0].cpu().numpy(), 
+					pr_vid.cpu().numpy(), attn.cpu().numpy(),
+					f"./experiments/{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
+					trunk=6, send_to_wandb=True if args.wandb else False)
 			# visualize segmentation
-			misc.viz_seg(video[0].cpu().numpy(), gt_seg[0], pr_seg[0], 
+			misc.viz_seg(video[0].cpu().numpy(), 
+				segmentations[0].int().cpu().numpy(), 
+				pr_seg.int().cpu().numpy(), 
 				f"./experiments/{args.exp}/viz_seg/{name}_{i_batch}.png",
 				trunk=3, send_to_wandb=True if args.wandb else False)
 
@@ -370,7 +318,7 @@ def run(args):
 	print("{}".format(args).replace(', ', ',\n'))
 
 	if args.wandb:
-		wandb.init(project="savi", name=args.exp)
+		wandb.init(project="savi", name=args.exp, group=args.group)
 	# TODO: tensorboard or csv
 
 	device = torch.device(args.gpu[0])
@@ -389,7 +337,10 @@ def run(args):
 	val_loader = torch.utils.data.DataLoader(dataset_val, 1, shuffle=False)
 
 	# Model setup
-	model = build_model(args).to(device)
+	model, criterion, evaluator = processors_dict[args.model_type](args)
+	model = model.to(device)
+	criterion = criterion.to(device)
+	evaluator = evaluator.to(device)
 
 	# build optimizer
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -403,8 +354,6 @@ def run(args):
 	print("lr: %.2e" % args.lr)
 
 	# Loss
-	# criterion = losses.recon_loss
-	criterion = losses.Recon_Loss()
 	print("criterion = %s" % str(criterion))
 
 	# make dataparallel
@@ -417,8 +366,8 @@ def run(args):
 
 	# eval only
 	if args.eval:
-		assert isinstance(args.resume_from, str), "no snapshot given."
-		evaluate(val_loader, model, criterion, device, args, f"eval")
+		# assert isinstance(args.resume_from, str), "no snapshot given."
+		evaluate(val_loader, model, criterion, evaluator, device, args, f"eval")
 		sys.exit(1)
 
 	for epoch in range(args.epochs):
@@ -426,7 +375,8 @@ def run(args):
 			model, criterion, train_loader,
 			optimizer, device, epoch,
 			global_step, start_time,
-			args.max_grad_norm, args, val_loader
+			args.max_grad_norm, args,
+			val_loader, evaluator
 		)
 		global_step += step_add
 		print(f"epoch: {epoch+1}, loss: {loss}, clock: {datetime.now()-start_time}")
