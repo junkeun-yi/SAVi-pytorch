@@ -313,6 +313,6 @@ class ARI(nn.Module):
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
 			predicted_max_num_instances=args.num_slots,
 			ground_truth_max_num_instances=args.max_instances + 1,
-			padding_mask=input_pad, ignore_background=False)
+			padding_mask=input_pad, ignore_background=True)
 		
 		return ari_bg, ari_nobg
