@@ -300,14 +300,17 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 	final_ari = ari_running['total'] / ari_running['count']
 	final_ari_nobg = ari_nobg_running['total'] / ari_nobg_running['count']
 
-	print(f"{name}: loss: {final_loss}, ari_bg: {final_ari}, ari_nobg: {final_ari_nobg}")
+	# print(f"{name}: loss: {final_loss}, ari_bg: {final_ari}, ari_fg: {final_ari_nobg}")
+	print(f"{name}: loss: {final_loss}, ari_fg: {final_ari_nobg}")
 
 	# switch back to training
 	model.train()
 
 	# TODO: log (tensorboard or csv)
 	if args.wandb:
-		wandb.log({'eval/loss': final_loss, 'eval/ari': final_ari, 'eval/ari_nobg': final_ari_nobg})
+		# wandb.log({'eval/loss': final_loss, 'eval/ari': final_ari, 'eval/ari_nobg': final_ari_nobg})
+		# only log foreground ari ...
+		wandb.log({'eval/loss': final_loss, 'eval/ari_fg': final_ari_nobg})
 
 	return final_loss, final_ari, final_ari_nobg
 
