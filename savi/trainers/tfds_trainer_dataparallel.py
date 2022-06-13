@@ -178,7 +178,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		loss_value = loss.item()
 
-		print(f"step: {global_step} / {args.num_train_steps}, loss: {loss_value}, clock: {datetime.now()-start_time}", end='\r')
+		print(f"step: {global_step+1} / {args.num_train_steps}, loss: {loss_value}, clock: {datetime.now()-start_time}", end='\r')
 
 		if not math.isfinite(loss_value):
 			print("Loss is {}, stopping training".format(loss_value))
@@ -258,7 +258,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		for k, v in ari_nobg.items():
 			ari_nobg_running[k] += v.item()
 
-		print(f"{i_batch} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_nobg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
+		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_nobg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
 
 		# visualize first 3 iterations
 		if i_batch < 3:
