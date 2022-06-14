@@ -258,7 +258,8 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		for k, v in ari_nobg.items():
 			ari_nobg_running[k] += v.item()
 
-		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_nobg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
+		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari_fg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
+		# print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_nobg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
 
 		# visualize first 3 iterations
 		if i_batch < 3:
@@ -286,12 +287,12 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 			# visualize attention again
 			if args.model_type == "flow":
 				misc.viz_slots_frame_pred(video[0].cpu().numpy(), 
-					pr_vid.cpu().numpy(), attn.cpu().numpy(),
+					pr_vid.cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
 					f"./experiments/{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
 					trunk=6, send_to_wandb=True if args.wandb else False)
 			# visualize segmentation
 			misc.viz_seg(video[0].cpu().numpy(), 
-				segmentations[0].int().cpu().numpy(), 
+				segmentations[0].int().cpu().numpy(),
 				pr_seg.int().cpu().numpy(), 
 				f"./experiments/{args.exp}/viz_seg/{name}_{i_batch}.png",
 				trunk=3, send_to_wandb=True if args.wandb else False)

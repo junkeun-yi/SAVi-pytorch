@@ -80,14 +80,11 @@ class FlowPrediction(nn.Module):
 		att_t = att_t.reshape(shape=(B, T, N, (h*w))).permute(0, 1, 3, 2)
 
 		# find object-wise masks and object-wise forward flows per frame
-		# TODO: originally, we concatenated adjacent slots, 
-		#   but here we try a sum to preserve slot dimension.
-		# adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=2)
-		adjacent_slots = slots_t[:, :-1] + slots_t[:, 1:] # (B (T-1) N S)
+		adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=-1)
 		# add the first slot to get a mask for it too ...
 		# adding the first slot to itself will model no movement.
-		adjacent_slots = torch.cat([slots_t[:, :1]*2, adjacent_slots], dim=1)
-		# inputs are adjacent slots = ((B T) N S)
+		adjacent_slots = torch.cat([torch.cat([slots_t[:, :1], slots_t[:, :1]], dim=-1), adjacent_slots], dim=1)
+		# inputs are adjacent slots = ((B T) N S*2)
 		outputs = self.decoder(adjacent_slots.flatten(0, 1))
 
 		masks_t = outputs["segmentations"].reshape(shape=(B, T, H, W, 1)) # (B T N H W 1)

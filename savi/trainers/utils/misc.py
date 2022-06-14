@@ -461,7 +461,7 @@ def viz_slots_flow(vid, gt_flow, pr_flow, mask, output_fn, trunk=None, send_to_w
 		})
 
 
-def viz_slots_frame_pred(vid, pred_frame, mask, output_fn, trunk=None, send_to_wandb=False):
+def viz_slots_frame_pred(vid, pred_frame, pred_flow, mask, output_fn, trunk=None, send_to_wandb=False):
 	"""
 	Plot the video and slots
 
@@ -479,15 +479,16 @@ def viz_slots_frame_pred(vid, pred_frame, mask, output_fn, trunk=None, send_to_w
 	slots = vid[:, np.newaxis, :, :, :] * mask[:, :, :, :, np.newaxis]
 
 	plt.close()
-	fig, ax = plt.subplots(T, n_objs+2, dpi=400)
+	fig, ax = plt.subplots(T, n_objs+3, dpi=400)
 
 	for t in range(T):
 		
 		plot_image(ax[t, 0], vid[t], 'frame')
 		plot_image(ax[t, 1], pred_frame[t], 'pred_frame')
+		plot_image(ax[t, 2], pred_flow[t], 'pred_flow')
 
-		for obj in range(2, n_objs+2):
-			plot_image(ax[t, obj], slots[t, obj-2], f'slot {obj-1}')
+		for obj in range(3, n_objs+3):
+			plot_image(ax[t, obj], slots[t, obj-3], f'slot {obj-2}')
 	
 	plt.savefig(output_fn)
 	plt.show()

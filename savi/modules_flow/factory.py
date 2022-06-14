@@ -39,14 +39,14 @@ def build_model(args):
 	decoder = modules.SpatialBroadcastDecoder(
 		resolution=(8,8), # Update if data resolution or strides change.
 		backbone=modules.CNN(
-			features=[slot_size, 64, 64, 64, 64],
+			features=[slot_size*2, 64, 64, 64, 64],
 			kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
 			strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
 			padding=[2, 2, 2, "same"],
 			transpose_double=True,
 			layer_transpose=[True, True, True, False]),
 		pos_emb=modules.PositionEmbedding(
-			input_shape=(args.batch_size, 8, 8, 128),
+			input_shape=(args.batch_size, 8, 8, slot_size*2),
 			embedding_type="linear",
 			update_type="project_add"),
 		target_readout=modules.Readout(
