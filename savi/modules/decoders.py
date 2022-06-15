@@ -86,9 +86,11 @@ class SpatialBroadcastDecoder(nn.Module):
                 preds_dict[f"eval/{target_key}_masked"] = masked_channels
                 preds_dict[f"eval/{target_key}_combined"] = decoded_target
         
-        if not self.training: # intermediates for logging.
-            preds_dict["eval/alpha_mask"] = alpha_mask
+        # if not self.training: # intermediates for logging.
+        #     preds_dict["eval/alpha_mask"] = alpha_mask
+        preds_dict["alpha_mask"] = alpha_mask
 
-        preds_dict["segmentations"] = alpha_logits.argmax(dim=1)
+        if not self.training: # only return for evaluation
+            preds_dict["segmentations"] = alpha_logits.argmax(dim=1)
 
         return preds_dict

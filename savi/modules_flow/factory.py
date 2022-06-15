@@ -39,20 +39,21 @@ def build_model(args):
 	decoder = modules.SpatialBroadcastDecoder(
 		resolution=(8,8), # Update if data resolution or strides change.
 		backbone=modules.CNN(
-			features=[slot_size*2, 64, 64, 64, 64],
+			features=[slot_size, 64, 64, 64, 64],
 			kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
 			strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
 			padding=[2, 2, 2, "same"],
 			transpose_double=True,
 			layer_transpose=[True, True, True, False]),
 		pos_emb=modules.PositionEmbedding(
-			input_shape=(args.batch_size, 8, 8, slot_size*2),
+			input_shape=(args.batch_size, 8, 8, slot_size),
 			embedding_type="linear",
 			update_type="project_add"),
-		target_readout=modules.Readout(
-			keys=["flow"],
-			readout_modules=nn.ModuleList([
-				nn.Linear(64, 2)])))
+		target_readout=modules.misc.DummyReadout())
+	# Flow Predictor
+	flow_pred = modules_flow.model.create_mlp(
+		input_dim=slot_size*2,
+		output_dim=2)
 	# Frame Predictor
 	frame_pred = modules_flow.FlowWarp()
 	# Initializer
@@ -68,6 +69,7 @@ def build_model(args):
 	model = modules_flow.FlowPrediction(
 		encoder=encoder,
 		decoder=decoder,
+		flow_pred=flow_pred,
 		obj_slot_attn=obj_slot_attn,
 		frame_pred=frame_pred,
 		initializer=initializer

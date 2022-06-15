@@ -61,6 +61,10 @@ class Readout(nn.Module):
 			outputs[self.keys[i]] = next(modules_iter)(x)
 		return outputs
 
+class DummyReadout(nn.Module):
+
+	def forward(self, inputs: Array) -> ArrayTree:
+		return {}
 
 class MLP(nn.Module):
 	"""Simple MLP with one hidden layer and optional pre-/post-layernorm."""

@@ -177,7 +177,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
-		loss = criterion(outputs, batch, global_step)
+		loss = criterion(outputs, batch)
 		loss = loss.mean() # mean over devices
 
 		loss_value = loss.item()
@@ -274,7 +274,8 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 				pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
 			else:
 				pr_flow = outputs[2][0]
-				T, H, W, _ = pr_flow.shape
+				B, T, H, W, _ = video.shape
+				pr_flow = torch.cat([torch.zeros(1,H,W,2).to(pr_flow.get_device()), pr_flow], dim=0)
 				pr_flow = torchvision.utils.flow_to_image(
 					pr_flow.permute(0,3,1,2)).permute(0,2,3,1).reshape(shape=(T, H, W, 3))
 				attn = outputs[4][0]

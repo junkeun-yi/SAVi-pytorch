@@ -21,21 +21,14 @@ class L2Loss(nn.Module):
 		self.l2 = nn.MSELoss(reduction=reduction)
 		self.l2_weight = l2_weight
 
-	def forward(self, model_outputs, batch, step=0):
+	def forward(self, model_outputs, batch):
 		# pred_frames, _, _, _, _, = model_outputs
 		# pred_frames, _, _, _, _, _= model_outputs
-		pred_frames, masks_t, slot_flow_pred, slots_t, att_t, adjacent_slots = model_outputs
+		pred_frames, pred_seg, pred_flow, slots_t, att_t = model_outputs
 		gt_frames, _, _, _, _ = batch
 
 		# l2 loss between images and predicted images
 		loss = self.l2_weight * self.l2(pred_frames, gt_frames)
-		# if step == 1000:
-		# 	pf, mask, sfp, slots, attn, adj = model_outputs
-		# 	vid = gt_frames
-		# 	print('prev step l2', self.l2(vid, torch.cat([vid[:, :1], vid[:, :-1]], dim=1)))
-		# 	import ipdb
-		# 	ipdb.set_trace()
-		# 	print(1)
 
 		return loss
 
@@ -48,10 +41,10 @@ class ARI(nn.Module):
 
 	def forward(self, model_outputs, batch, args):
 		# pred_frames, masks_t, slot_flow_pred, slots_t, att_t = model_outputs
-		pred_frames, masks_t, slot_flow_pred, slots_t, att_t, adjacent_slots = model_outputs
+		pred_frames, pred_seg, pred_flow, slots_t, att_t = model_outputs
 		video, boxes, flow, padding_mask, segmentations = batch
 
-		pr_seg = masks_t.squeeze(-1).int().cpu().numpy()
+		pr_seg = pred_seg.squeeze(-1).int().cpu().numpy()
 		gt_seg = segmentations.int().cpu().numpy()
 		input_pad = padding_mask.cpu().numpy()
 

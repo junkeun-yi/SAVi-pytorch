@@ -34,6 +34,7 @@ class FlowPrediction(nn.Module):
 				 encoder: nn.Module,
 				 decoder: nn.Module,
 				 obj_slot_attn: nn.Module,
+				 flow_pred: nn.Module,
 				 frame_pred: nn.Module,
 				 initializer: nn.Module
 				):
@@ -42,6 +43,7 @@ class FlowPrediction(nn.Module):
 		self.encoder = encoder
 		self.decoder = decoder
 		self.obj_slot_attn = obj_slot_attn
+		self.flow_pred = flow_pred
 		self.frame_pred = frame_pred
 		self.initializer = initializer
 
@@ -58,8 +60,8 @@ class FlowPrediction(nn.Module):
 
 		Returns:
 			pred_frames: (B T H W C). predicted video frames.
-			masks_t: (B T H W 1). segmentation masks.
-			slot_flow_pred: (B T H W 2). predicted flow.
+			pred_seg: (B T H W 1). predicted segmentation.
+			pred_flow: (B (T-1) H W 2). predicted flow.
 			slots_t: (B T N S). framewise slots.
 			att_t: (B T (h* w*) N). attention maps.
 		"""
@@ -93,36 +95,36 @@ class FlowPrediction(nn.Module):
 		slots_t = slots_t.reshape(shape=(B, T, N, S))
 		att_t = att_t.reshape(shape=(B, T, N, (h*w))).permute(0, 1, 3, 2)
 
-		# find object-wise masks and object-wise forward flows per frame
-		adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=-1)
-		# add the first slot to get a mask for it too ...
-		# adding the first slot to itself will model no movement.
-		adjacent_slots = torch.cat([torch.cat([slots_t[:, :1], slots_t[:, :1]], dim=-1), adjacent_slots], dim=1)
-		# inputs are adjacent slots = ((B T) N S*2)
-
+		# get objet-wise masks. alpha mask = (B T N H W 1)
 		if kwargs.get('slice_decode_inputs'):
 			# decode over slices to bypass memory constraints
 			# just do every timestep separately. (naive)
-			outputs = {"segmentations": [], "flow": []}
+			alpha_mask = []
 			for t in range(T):
-				decoded = self.decoder(adjacent_slots[:, t:t+1].flatten(0,1))
-				outputs["segmentations"].append(decoded["segmentations"].unsqueeze(1))
-				outputs["flow"].append(decoded["flow"].unsqueeze(1))
-			outputs["segmentations"] = torch.cat(outputs["segmentations"], 1)
-			outputs["flow"] = torch.cat(outputs["flow"], 1)
+				decoded = self.decoder(slots_t[:, t:t+1].flatten(0,1))
+				alpha_mask.append(decoded["alpha_mask"].unsqueeze(1))
+			alpha_mask = torch.cat(alpha_mask, 1)
 		else:
-			outputs = self.decoder(adjacent_slots.flatten(0, 1))
+			alpha_mask = self.decoder(slots_t.flatten(0, 1))["alpha_mask"]
+			alpha_mask = alpha_mask.reshape(shape=(B, T, N, H, W, 1))
 
-		masks_t = outputs["segmentations"].reshape(shape=(B, T, H, W, 1)) # (B T N H W 1)
-		slot_flow_pred = outputs["flow"].reshape(shape=(B, T, H, W, 2)) # (B T N H W 2)
+		# get predicted flow per object
+		adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=-1)
+		# inputs are adjacent slots = ((B (T-1) N) S*2)
+		slot_flow_pred = self.flow_pred(adjacent_slots.view((B * (T-1) * N, -1))) * 20
+		slot_flow_pred = slot_flow_pred.view(B, T-1, N, 2)
+		# broadcast and mask flow, combine object flows. ((B (T-1)) H W 2)
+		pred_flow = (slot_flow_pred[:, :, :, None, None, :]*alpha_mask[:, :-1]).sum(2)
 
-		# predict next frames (first frame copied twice. don't predict unknown future.)
+		# predict next frames, add first frame because it's not predicted.
 		# pred_frames = (B T H W C)
-		vid_input = torch.cat([video[:, :1], video[:, :-1]], dim=1).flatten(0,1)
-		pred_frames = self.frame_pred(vid_input, slot_flow_pred.flatten(0, 1), channels_last=True)
-		pred_frames = pred_frames.reshape(shape=(B, T, H, W, C))
+		pred_frames = self.frame_pred(video[:, :-1].flatten(0,1), pred_flow.flatten(0,1), channels_last=True)
+		pred_frames = pred_frames.reshape(shape=(B, T-1, H, W, C))
+		pred_frames = torch.cat([video[:, :1], pred_frames], dim=1)
 
-		return pred_frames, masks_t, slot_flow_pred, slots_t, att_t, adjacent_slots
+		pred_seg = alpha_mask.argmax(dim=2)
+
+		return pred_frames, pred_seg, pred_flow, slots_t, att_t
 
 
 class FlowWarp(nn.Module):
