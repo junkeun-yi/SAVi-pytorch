@@ -91,7 +91,7 @@ class SAVi(nn.Module):
 
     def forward(self, video: Array, conditioning: Optional[Array] = None,
                 continue_from_previous_state: bool = False,
-                padding_mask: Optional[Array] = None) -> ArrayTree:
+                padding_mask: Optional[Array] = None, **kwargs) -> ArrayTree:
         """Performs a forward pass on a video.
 
         Args:
@@ -107,6 +107,7 @@ class SAVi(nn.Module):
         Returns:
             A dictionary of model predictions.
         """
+        del kwargs # Unused.
 
         if padding_mask is None:
             padding_mask = torch.ones(video.shape[:-1], dtype=torch.int32)

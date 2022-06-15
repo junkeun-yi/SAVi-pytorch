@@ -104,6 +104,17 @@ class SlotAttention(nn.Module):
 
         return slots, attn
 
+    def compute_attention(self, slots, inputs):
+        """Slot Attention without GRU and iteration."""
+                # inputs.shape = (b, n_inputs, input_size).
+        inputs = self.layernorm_input(inputs)
+        k = torch.einsum("bkm,hmd->bkhd", inputs, self.w_k)
+        v = torch.einsum("bkm,hmd->bkhd", inputs, self.w_v)
+        q = torch.einsum("bqs,hsd->bqhd", slots, self.w_q)
+        updated_slots, attn = self.inverted_attention(query=q, key=k, value=v)
+
+        # updated_slots [B Q S], attn TODO: shape
+        return updated_slots, attn
 
 class InvertedDotProductAttention(nn.Module):
     """Inverted version of dot-product attention (softmax over query axis)."""

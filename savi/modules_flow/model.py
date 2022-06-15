@@ -14,6 +14,19 @@ from savi.modules import misc
 Array = torch.Tensor
 ArrayTree = Union[Array, Iterable["ArrayTree"], Mapping[str, "ArrayTree"]]
 
+def create_mlp(input_dim, output_dim):
+    obj_vecs_net = nn.Sequential(
+        nn.Linear(input_dim, input_dim, bias=True),
+        nn.BatchNorm1d(input_dim),
+        nn.ReLU(inplace=True),
+        nn.Linear(input_dim, input_dim, bias=True),
+        nn.BatchNorm1d(input_dim),
+        nn.ReLU(inplace=True),
+        nn.Linear(input_dim, output_dim, bias=True),
+        nn.Tanh()
+    )
+    return obj_vecs_net
+
 class FlowPrediction(nn.Module):
 	"""Vide model consisting of encoder, slot attention module, and mask decoder."""
 
@@ -35,7 +48,7 @@ class FlowPrediction(nn.Module):
 		# submodules
 
 	def forward(self, video: Array, conditioning: Optional[Array] = None,
-				padding_mask: Optional[Array] = None) -> ArrayTree:
+				padding_mask: Optional[Array] = None, **kwargs) -> ArrayTree:
 		"""Performs a forward pass on a video.
 
 		Args:
@@ -73,7 +86,8 @@ class FlowPrediction(nn.Module):
 
 		# get attn b/w slots and spatial features
 		# attn with inputs as [(B T) (h* w*) F]
-		slots_t, att_t = self.obj_slot_attn(slots, enc.flatten(2, 3).flatten(0, 1))
+		# slots_t, att_t = self.obj_slot_attn(slots, enc.flatten(2, 3).flatten(0, 1))
+		slots_t, att_t = self.obj_slot_attn.compute_attention(slots, enc.flatten(2,3).flatten(0,1))
 
 		# slots_t = [B T N S], att_t = (B T (h* w*) N)
 		slots_t = slots_t.reshape(shape=(B, T, N, S))
@@ -85,7 +99,19 @@ class FlowPrediction(nn.Module):
 		# adding the first slot to itself will model no movement.
 		adjacent_slots = torch.cat([torch.cat([slots_t[:, :1], slots_t[:, :1]], dim=-1), adjacent_slots], dim=1)
 		# inputs are adjacent slots = ((B T) N S*2)
-		outputs = self.decoder(adjacent_slots.flatten(0, 1))
+
+		if kwargs.get('slice_decode_inputs'):
+			# decode over slices to bypass memory constraints
+			# just do every timestep separately. (naive)
+			outputs = {"segmentations": [], "flow": []}
+			for t in range(T):
+				decoded = self.decoder(adjacent_slots[:, t:t+1].flatten(0,1))
+				outputs["segmentations"].append(decoded["segmentations"].unsqueeze(1))
+				outputs["flow"].append(decoded["flow"].unsqueeze(1))
+			outputs["segmentations"] = torch.cat(outputs["segmentations"], 1)
+			outputs["flow"] = torch.cat(outputs["flow"], 1)
+		else:
+			outputs = self.decoder(adjacent_slots.flatten(0, 1))
 
 		masks_t = outputs["segmentations"].reshape(shape=(B, T, H, W, 1)) # (B T N H W 1)
 		slot_flow_pred = outputs["flow"].reshape(shape=(B, T, H, W, 2)) # (B T N H W 2)
@@ -96,7 +122,7 @@ class FlowPrediction(nn.Module):
 		pred_frames = self.frame_pred(vid_input, slot_flow_pred.flatten(0, 1), channels_last=True)
 		pred_frames = pred_frames.reshape(shape=(B, T, H, W, C))
 
-		return pred_frames, masks_t, slot_flow_pred, slots_t, att_t
+		return pred_frames, masks_t, slot_flow_pred, slots_t, att_t, adjacent_slots
 
 
 class FlowWarp(nn.Module):

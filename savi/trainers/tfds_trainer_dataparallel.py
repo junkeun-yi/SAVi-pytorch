@@ -48,6 +48,7 @@ def get_args():
 	adrg('--epochs', 50, int)
 	adrg('--num_train_steps', 100000, int)
 	parser.add_argument('--gpu', default='1', type=str, help='GPU id to use.')
+	parser.add_argument('--slice_decode_inputs', action='store_true', help="decode in slices.")
 	
 	# Adam optimizer config
 	adrg('--lr', 2e-4, float)
@@ -83,8 +84,8 @@ def get_args():
 	adrg('--model_type', 'savi', help="model type")
 
 	# Evaluation
-	adrg('--eval_slice_size', 6, int)
-	adrg('--eval_slice_keys', 'video,segmentations,flow,boxes')
+	# adrg('--eval_slice_size', 6, int)
+	# adrg('--eval_slice_keys', 'video,segmentations,flow,boxes')
 	parser.add_argument('--eval', action='store_true', help="Perform evaluation only")
 
 
@@ -99,10 +100,13 @@ def get_args():
 	# Misc
 	args.num_slots = args.max_instances + 1 # only used for metrics
 	args.logging_min_n_colors = args.max_instances
-	args.eval_slice_keys = [v for v in args.eval_slice_keys.split(',')]
+	# args.eval_slice_keys = [v for v in args.eval_slice_keys.split(',')]
 	args.shuffle_buffer_size = args.batch_size
 	# if not args.group:
 	# 	args.group = f"{args.model_type}_{args.tfds_name.split('/')[0]}"
+	kwargs = {}
+	kwargs['slice_decode_inputs'] = True if args.slice_decode_inputs else False
+	args.kwargs = kwargs
 
 	# HARDCODED
 	args.targets = {"flow": 3}
@@ -173,7 +177,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
-		loss = criterion(outputs, batch)
+		loss = criterion(outputs, batch, global_step)
 		loss = loss.mean() # mean over devices
 
 		loss_value = loss.item()
@@ -246,7 +250,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 
 		# compute output
 		outputs = model(video=video, conditioning=conditioning, 
-			padding_mask=padding_mask)
+			padding_mask=padding_mask, **args.kwargs)
 		loss = criterion(outputs, batch)
 		loss = loss.mean() # mean over devices
 		loss_value = loss.item()
