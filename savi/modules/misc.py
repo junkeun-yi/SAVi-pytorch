@@ -305,9 +305,10 @@ class ARI(nn.Module):
 	def forward(self, model_outputs, batch, args):
 		video, boxes, segmentations, flow, padding_mask, mask = batch
 
-		pr_seg = model_outputs["outputs"]["segmentations"].squeeze(-1).int().cpu().numpy()
-		gt_seg = segmentations.int().cpu().numpy()
-		input_pad = padding_mask.cpu().numpy()
+		# discard first frame as had conditional info.
+		pr_seg = model_outputs["outputs"]["segmentations"][:, 1:].squeeze(-1).int().cpu().numpy()
+		gt_seg = segmentations[:, 1:].int().cpu().numpy()
+		input_pad = padding_mask[:, 1:].cpu().numpy()
 		mask = mask.cpu().numpy()
 
 		# ari_bg = metrics.Ari.from_model_output(

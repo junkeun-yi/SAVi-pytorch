@@ -101,7 +101,7 @@ def get_args():
 	args.num_slots = args.max_instances + 1 # only used for metrics
 	args.logging_min_n_colors = args.max_instances
 	# args.eval_slice_keys = [v for v in args.eval_slice_keys.split(',')]
-	args.shuffle_buffer_size = args.batch_size
+	args.shuffle_buffer_size = args.batch_size * 8
 	# if not args.group:
 	# 	args.group = f"{args.model_type}_{args.tfds_name.split('/')[0]}"
 	kwargs = {}
@@ -215,12 +215,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 			print()
 			evaluate(val_loader, model, criterion, evaluator, device, args, global_step)
 		if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
-			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
+			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
 		# SAVi doesn't train on epochs, just on steps.
 		if global_step >= args.num_train_steps:
 			# save before exit
 			print('done training')
-			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
+			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
 			print('exiting')
 			sys.exit(0)
 	
@@ -293,19 +293,19 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 			# visualize attention
 			misc.viz_slots_flow(video[0].cpu().numpy(), 
 				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
-				f"./experiments/{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
+				f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
 				trunk=6, send_to_wandb=True if args.wandb else False)
 			# visualize attention again
 			if args.model_type == "flow":
 				misc.viz_slots_frame_pred(video[0].cpu().numpy(), 
 					pr_vid.cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
-					f"./experiments/{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
+					f"./experiments/{args.group}_{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
 					trunk=6, send_to_wandb=True if args.wandb else False)
 			# visualize segmentation
 			misc.viz_seg(video[0].cpu().numpy(), 
 				segmentations[0].int().cpu().numpy(),
 				pr_seg.int().cpu().numpy(), 
-				f"./experiments/{args.exp}/viz_seg/{name}_{i_batch}.png",
+				f"./experiments/{args.group}_{args.exp}/viz_seg/{name}_{i_batch}.png",
 				trunk=3, send_to_wandb=True if args.wandb else False)
 
 	final_loss = loss_value

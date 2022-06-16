@@ -1,0 +1,17 @@
+# most basic
+python -m savi.main --seed {} --wandb --group {} --exp {} --gpu {}
+
+# using movi_c
+python -m savi.main --tfds_name movi_c/128x128:1.0.0 --seed {} --wandb --group {} --exp {} --gpu {}
+
+# model flow
+python -m savi.main --seed {} --wandb --group {} --exp {} --gpu {} --model_type flow --slice_decode_inputs
+
+# for evaluation, just add --eval.
+# to resume, use --resume_from {checkpoint_path}
+
+
+# examples
+python -m savi.main --seed 50 --wandb --group savi_movi_a --exp 6.15/50 --gpu 0,1,2,3
+
+python -m savi.main --tfds_name movi_c/128x128:1.0.0 --seed 50 --wandb --group savi_movi_c --exp 6.15/50 --gpu 4,7,8,9
