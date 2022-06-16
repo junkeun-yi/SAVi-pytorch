@@ -63,7 +63,7 @@ def build_model(args):
 				transpose_double=True,
 				layer_transpose=[True, True, True, False]),
 			pos_emb=modules.PositionEmbedding(
-				input_shape=(args.batch_size, 8, 8, 128),
+				input_shape=(args.batch_size, 8, 8, slot_size),
 				embedding_type="linear",
 				update_type="project_add"),
 			target_readout=modules.Readout(

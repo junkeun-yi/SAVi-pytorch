@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import numpy as np
 
 import savi.lib.metrics as metrics
+import savi.lib.metrics_jax as metrics_jax
 from savi.lib import utils
 
 DType = Any
@@ -287,7 +288,7 @@ class ReconLoss(nn.Module):
 
 	def forward(self, model_outputs, batch):
 		pred_flow = model_outputs["outputs"]["flow"]
-		_, _, gt_flow, _, _ = batch
+		video, boxes, segmentations, gt_flow, padding_mask, mask = batch
 
 		# l2 loss between images and predicted images
 		loss = self.l2_weight * self.l2(pred_flow, gt_flow)
@@ -302,21 +303,26 @@ class ARI(nn.Module):
 	"""ARI."""
 
 	def forward(self, model_outputs, batch, args):
-		video, boxes, flow, padding_mask, segmentations = batch
+		video, boxes, segmentations, flow, padding_mask, mask = batch
 
 		pr_seg = model_outputs["outputs"]["segmentations"].squeeze(-1).int().cpu().numpy()
 		gt_seg = segmentations.int().cpu().numpy()
 		input_pad = padding_mask.cpu().numpy()
+		mask = mask.cpu().numpy()
 
-		ari_bg = metrics.Ari.from_model_output(
+		# ari_bg = metrics.Ari.from_model_output(
+		ari_bg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
-			predicted_max_num_instances=args.num_slots,
+			padding_mask=input_pad,
 			ground_truth_max_num_instances=args.max_instances + 1,
-			padding_mask=input_pad, ignore_background=False)
-		ari_nobg = metrics.Ari.from_model_output(
+			predicted_max_num_instances=args.num_slots,
+			ignore_background=False, mask=mask)
+		# ari_nobg = metrics.Ari.from_model_output(
+		ari_nobg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
-			predicted_max_num_instances=args.num_slots,
+			padding_mask=input_pad, 
 			ground_truth_max_num_instances=args.max_instances + 1,
-			padding_mask=input_pad, ignore_background=True)
+			predicted_max_num_instances=args.num_slots,
+			ignore_background=True, mask=mask)
 		
 		return ari_bg, ari_nobg

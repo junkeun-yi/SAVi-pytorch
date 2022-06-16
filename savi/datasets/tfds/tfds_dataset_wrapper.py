@@ -29,9 +29,10 @@ class MOViData(Dataset):
         boxes = torch.from_numpy(batch['boxes']) # (B T maxN 4)
         flow = torch.from_numpy(batch['flow']) # (B T H W 3)
         padding_mask = torch.from_numpy(batch['padding_mask'])
+        mask = torch.from_numpy(batch['mask'])
         segmentations = torch.from_numpy(batch['segmentations'])
 
-        return video, boxes, flow, padding_mask, segmentations
+        return video, boxes, segmentations, flow, padding_mask, mask
     
     def reset_itr(self):
         self.itr = iter(self.dataset)

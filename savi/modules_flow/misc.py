@@ -25,7 +25,7 @@ class L2Loss(nn.Module):
 		# pred_frames, _, _, _, _, = model_outputs
 		# pred_frames, _, _, _, _, _= model_outputs
 		pred_frames, pred_seg, pred_flow, slots_t, att_t = model_outputs
-		gt_frames, _, _, _, _ = batch
+		gt_frames, boxes, segmentations, flow, padding_mask, mask = batch
 
 		# l2 loss between images and predicted images
 		loss = self.l2_weight * self.l2(pred_frames, gt_frames)
@@ -42,21 +42,26 @@ class ARI(nn.Module):
 	def forward(self, model_outputs, batch, args):
 		# pred_frames, masks_t, slot_flow_pred, slots_t, att_t = model_outputs
 		pred_frames, pred_seg, pred_flow, slots_t, att_t = model_outputs
-		video, boxes, flow, padding_mask, segmentations = batch
+		video, boxes, segmentations, flow, padding_mask, mask = batch
 
 		pr_seg = pred_seg.squeeze(-1).int().cpu().numpy()
 		gt_seg = segmentations.int().cpu().numpy()
 		input_pad = padding_mask.cpu().numpy()
+		mask = mask.cpu().numpy()
 
 		ari_bg = metrics.Ari.from_model_output(
+		# ari_bg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
-			predicted_max_num_instances=args.num_slots,
+			padding_mask=input_pad,
 			ground_truth_max_num_instances=args.max_instances + 1,
-			padding_mask=input_pad, ignore_background=False)
+			predicted_max_num_instances=args.num_slots,
+			ignore_background=False, mask=mask)
 		ari_nobg = metrics.Ari.from_model_output(
+		# ari_nobg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
-			predicted_max_num_instances=args.num_slots,
+			padding_mask=input_pad,
 			ground_truth_max_num_instances=args.max_instances + 1,
-			padding_mask=input_pad, ignore_background=True)
+			predicted_max_num_instances=args.num_slots,
+			ignore_background=True, mask=mask)
 		
 		return ari_bg, ari_nobg

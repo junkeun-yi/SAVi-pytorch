@@ -16,7 +16,7 @@ def check_shape(x, expected_shape: Sequence[Optional[int]], name: str):
         x: Any data type with `shape` attribute. if `shape` sttribute is not present
             it is assumed to be a scalar with shape ().
         expected shape: The shape that is expected of x. For example,
-            [None, None, 3] can be the `expected shape` for a color image,
+            [None, None, 3] can be the `expected_shape` for a color image,
             [4, None, None, 3] if we know that batch size is 4.
         name: Name of `x` to provide informative error messages.
     Raises: ValueError if x's shape does not match expected_shape. Also raises
@@ -27,7 +27,7 @@ def check_shape(x, expected_shape: Sequence[Optional[int]], name: str):
             "expected_shape should be a list or tuple of ints but got "
             f"{expected_shape}.")
     
-    # Scalars have shape () by definition
+    # Scalars have shape () by definition.
     shape = getattr(x, "shape", ())
 
     if (len(shape) != len(expected_shape) or
@@ -196,7 +196,8 @@ class Ari():
         Returns:
             Object of Ari with computed intermediate values.
         """
-        _validate_inputs(predicted_segmentations=predicted_segmentations,
+        _validate_inputs(
+            predicted_segmentations=predicted_segmentations,
             ground_truth_segmentations=ground_truth_segmentations,
             padding_mask=padding_mask,
             mask=mask)

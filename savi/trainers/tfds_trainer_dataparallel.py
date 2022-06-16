@@ -164,14 +164,15 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		scheduler = None
 
 	loss = None
-	for data_iter_step, (video, boxes, flow, padding_mask, segmentations) in enumerate(data_loader):
+	for data_iter_step, (video, boxes, segmentations, flow, padding_mask, mask) in enumerate(data_loader):
 		# need to squeeze because of weird dataset wrapping ...
 		video = video.squeeze(0).to(device, non_blocking=True) # [64, 6, 64, 64, 3]
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
+		mask = mask.squeeze(0).to(device, non_blocking=True)
 		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
-		batch = (video, boxes, flow, padding_mask, segmentations)
+		batch = (video, boxes, segmentations, flow, padding_mask, mask)
 
 		conditioning = boxes # TODO: make this not hardcoded
 
@@ -216,8 +217,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
 			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
 		# SAVi doesn't train on epochs, just on steps.
-		if global_step > args.num_train_steps:
-			break
+		if global_step >= args.num_train_steps:
+			# save before exit
+			print('done training')
+			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.exp}/snapshots/{global_step}.pt')
+			print('exiting')
+			sys.exit(0)
 	
 	return global_step, loss
 
@@ -237,14 +242,15 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 	loss_value = 1e12
 	ari_running = {'total': 0, 'count': 0}
 	ari_nobg_running = {'total': 0, 'count': 0}
-	for i_batch, (video, boxes, flow, padding_mask, segmentations) in enumerate(data_loader):
+	for i_batch, (video, boxes, segmentations, flow, padding_mask, mask) in enumerate(data_loader):
 		# need to squeeze because of weird dataset wrapping ...
 		video = video.squeeze(0).to(device, non_blocking=True) # [64, 6, 64, 64, 3]
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
+		mask = mask.squeeze(0).to(device, non_blocking=True)
 		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
-		batch = (video, boxes, flow, padding_mask, segmentations)
+		batch = (video, boxes, segmentations, flow, padding_mask, mask)
 
 		conditioning = boxes # TODO: don't hardcode
 
@@ -262,8 +268,8 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		for k, v in ari_nobg.items():
 			ari_nobg_running[k] += v.item()
 
-		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari_fg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
-		# print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_nobg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
+		# print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari_fg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
+		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_fg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
 
 		# visualize first 3 iterations
 		if i_batch < 3:
@@ -306,17 +312,17 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 	final_ari = ari_running['total'] / ari_running['count']
 	final_ari_nobg = ari_nobg_running['total'] / ari_nobg_running['count']
 
-	# print(f"{name}: loss: {final_loss}, ari_bg: {final_ari}, ari_fg: {final_ari_nobg}")
-	print(f"{name}: loss: {final_loss}, ari_fg: {final_ari_nobg}")
+	print(f"{name}: loss: {final_loss}, ari_bg: {final_ari}, ari_fg: {final_ari_nobg}")
+	# print(f"{name}: loss: {final_loss}, ari_fg: {final_ari_nobg}")
 
 	# switch back to training
 	model.train()
 
 	# TODO: log (tensorboard or csv)
 	if args.wandb:
-		# wandb.log({'eval/loss': final_loss, 'eval/ari': final_ari, 'eval/ari_nobg': final_ari_nobg})
+		wandb.log({'eval/loss': final_loss, 'eval/ari': final_ari, 'eval/ari_fg': final_ari_nobg})
 		# only log foreground ari ...
-		wandb.log({'eval/loss': final_loss, 'eval/ari_fg': final_ari_nobg})
+		# wandb.log({'eval/loss': final_loss, 'eval/ari_fg': final_ari_nobg})
 
 	return final_loss, final_ari, final_ari_nobg
 

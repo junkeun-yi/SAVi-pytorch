@@ -113,7 +113,7 @@ class FlowPrediction(nn.Module):
 		# inputs are adjacent slots = ((B (T-1) N) S*2)
 		slot_flow_pred = self.flow_pred(adjacent_slots.view((B * (T-1) * N, -1))) * 20
 		slot_flow_pred = slot_flow_pred.view(B, T-1, N, 2)
-		# broadcast and mask flow, combine object flows. ((B (T-1)) H W 2)
+		# broadcast and mask flow, combine object flows. (B (T-1) H W 2)
 		pred_flow = (slot_flow_pred[:, :, :, None, None, :]*alpha_mask[:, :-1]).sum(2)
 
 		# predict next frames, add first frame because it's not predicted.
