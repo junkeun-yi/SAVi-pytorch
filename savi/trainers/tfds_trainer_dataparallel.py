@@ -64,7 +64,7 @@ def get_args():
 	adrg('--exp', 'test', help="experiment name")
 	parser.add_argument('--no_snap', action='store_true', help="don't snapshot model")
 	parser.add_argument('--wandb', action='store_true', help="wandb logging")
-	adrg('--group', None, help="wandb logging group")
+	adrg('--group', 'test', help="wandb logging group")
 
 	# Loading model
 	adrg('--resume_from', None, str, help="absolute path of experiment snapshot")
@@ -171,7 +171,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
-		mask = mask.squeeze(0).to(device, non_blocking=True)
+		mask = mask.squeeze(0).to(device, non_blocking=True) if len(mask) > 0 else None
 		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
 		batch = (video, boxes, segmentations, flow, padding_mask, mask)
 
@@ -203,6 +203,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		if args.wandb:
 			wandb.log({'train/loss': loss_value})
+			wandb.log({'train/lr': optimizer.param_groups[0]['lr']})
 
 		# global stepper.
 		global_step += 1
@@ -249,7 +250,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		boxes = boxes.squeeze(0).to(device, non_blocking=True)
 		flow = flow.squeeze(0).to(device, non_blocking=True)
 		padding_mask = padding_mask.squeeze(0).to(device, non_blocking=True)
-		mask = mask.squeeze(0).to(device, non_blocking=True)
+		mask = mask.squeeze(0).to(device, non_blocking=True) if len(mask) > 0 else None
 		segmentations = segmentations.squeeze(0).to(device, non_blocking=True)
 		batch = (video, boxes, segmentations, flow, padding_mask, mask)
 
@@ -275,6 +276,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		# visualize first 3 iterations
 		if i_batch < 3:
 			if args.model_type == "savi":
+				B, T, H, W, _ = video.shape
 				attn = outputs['attention'][0].squeeze(1)
 				attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
 				pr_flow = outputs['outputs']['flow'][0]
@@ -293,9 +295,9 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 			pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
 			# visualize attention
 			misc.viz_slots_flow(video[0].cpu().numpy(), 
-				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
+				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), outputs['outputs']['alpha_mask'][0].squeeze(-1).reshape((T, -1, H, W)).cpu().numpy(), # attn.cpu().numpy(),
 				f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
-				trunk=6, send_to_wandb=True if args.wandb else False)
+				trunk=8, send_to_wandb=True if args.wandb else False)
 			# visualize attention again
 			if args.model_type == "flow":
 				misc.viz_slots_frame_pred(video[0].cpu().numpy(), 
@@ -308,7 +310,6 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 				pr_seg.int().cpu().numpy(), 
 				f"./experiments/{args.group}_{args.exp}/viz_seg/{name}_{i_batch}.png",
 				trunk=3, send_to_wandb=True if args.wandb else False)
-
 	final_loss = loss_value
 	final_ari = ari_running['total'] / ari_running['count']
 	final_ari_nobg = ari_nobg_running['total'] / ari_nobg_running['count']
@@ -383,7 +384,8 @@ def run(args):
 	# eval only
 	if args.eval:
 		# assert isinstance(args.resume_from, str), "no snapshot given."
-		evaluate(val_loader, model, criterion, evaluator, device, args, f"eval")
+		# evaluate(val_loader, model, criterion, evaluator, device, args, f"eval")
+		evaluate(train_loader, model, criterion, evaluator, device, args, f"eval")
 		sys.exit(1)
 
 	for epoch in range(args.epochs):

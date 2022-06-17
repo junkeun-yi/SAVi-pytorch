@@ -237,7 +237,7 @@ class Ari(metrics.Average):
 
     batch_size = predicted_segmentations.shape[0]
 
-    if mask is None:
+    if mask is None or len(mask) == 0:
       mask = jnp.ones(batch_size, dtype=padding_mask.dtype)
     else:
       mask = jnp.asarray(mask, dtype=padding_mask.dtype)
