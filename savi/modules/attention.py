@@ -108,6 +108,7 @@ class SlotAttention(nn.Module):
         """Slot Attention without GRU and iteration."""
                 # inputs.shape = (b, n_inputs, input_size).
         inputs = self.layernorm_input(inputs)
+        slots = self.layernorm_q(slots)
         k = torch.einsum("bkm,hmd->bkhd", inputs, self.w_k)
         v = torch.einsum("bkm,hmd->bkhd", inputs, self.w_v)
         q = torch.einsum("bqs,hsd->bqhd", slots, self.w_q)

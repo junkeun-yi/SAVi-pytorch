@@ -45,10 +45,10 @@ class ARI(nn.Module):
 		video, boxes, segmentations, flow, padding_mask, mask = batch
 
 		# discard first frame as had conditional info.
-		pr_seg = model_outputs["outputs"]["segmentations"][:, 1:].squeeze(-1).int().cpu().numpy()
+		pr_seg = pred_seg[:, 1:].squeeze(-1).int().cpu().numpy()
 		gt_seg = segmentations[:, 1:].int().cpu().numpy()
 		input_pad = padding_mask[:, 1:].cpu().numpy()
-		mask = mask[:, 1:].cpu().numpy()
+		mask = mask.cpu().numpy()
 
 		ari_bg = metrics.Ari.from_model_output(
 		# ari_bg = metrics_jax.Ari.from_model_output(

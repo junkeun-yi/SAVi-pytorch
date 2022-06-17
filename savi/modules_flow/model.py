@@ -28,7 +28,7 @@ def create_mlp(input_dim, output_dim):
     return obj_vecs_net
 
 class FlowPrediction(nn.Module):
-	"""Vide model consisting of encoder, slot attention module, and mask decoder."""
+	"""Video model consisting of encoder, slot attention module, and mask decoder."""
 
 	def __init__(self,
 				 encoder: nn.Module,
@@ -96,23 +96,32 @@ class FlowPrediction(nn.Module):
 		att_t = att_t.reshape(shape=(B, T, N, (h*w))).permute(0, 1, 3, 2)
 
 		# get objet-wise masks. alpha mask = (B T N H W 1)
+		pred_seg = None
 		if kwargs.get('slice_decode_inputs'):
 			# decode over slices to bypass memory constraints
 			# just do every timestep separately. (naive)
 			alpha_mask = []
+			pred_seg = []
 			for t in range(T):
 				decoded = self.decoder(slots_t[:, t:t+1].flatten(0,1))
 				alpha_mask.append(decoded["alpha_mask"].unsqueeze(1))
+				if "segmentations" in decoded:
+					pred_seg.append(decoded["segmentations"].unsqueeze(1))
 			alpha_mask = torch.cat(alpha_mask, 1)
+			if len(pred_seg) > 0:
+				pred_seg = torch.cat(pred_seg, 1)
 		else:
-			alpha_mask = self.decoder(slots_t.flatten(0, 1))["alpha_mask"]
-			alpha_mask = alpha_mask.reshape(shape=(B, T, N, H, W, 1))
+			decoded = self.decoder(slots_t.flatten(0, 1))
+			alpha_mask = decoded["alpha_mask"].reshape(shape=(B, T, N, H, W, 1))
+			if "segmentations" in decoded:
+				pred_seg = decoded["segmentations"].reshape(shape=(B, T, H, W, 1))
+		# TODO: something is wrong with the shaping of these masks and such.
 
 		# get predicted flow per object
 		adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=-1)
 		# inputs are adjacent slots = ((B (T-1) N) S*2)
-		slot_flow_pred = self.flow_pred(adjacent_slots.view((B * (T-1) * N, -1))) * 20
-		slot_flow_pred = slot_flow_pred.view(B, T-1, N, 2)
+		slot_flow_pred = self.flow_pred(adjacent_slots.reshape(-1, S*2)) * 20
+		slot_flow_pred = slot_flow_pred.reshape(shape=(B, T-1, N, 2))
 		# broadcast and mask flow, combine object flows. (B (T-1) H W 2)
 		pred_flow = (slot_flow_pred[:, :, :, None, None, :]*alpha_mask[:, :-1]).sum(2)
 
@@ -121,8 +130,6 @@ class FlowPrediction(nn.Module):
 		pred_frames = self.frame_pred(video[:, :-1].flatten(0,1), pred_flow.flatten(0,1), channels_last=True)
 		pred_frames = pred_frames.reshape(shape=(B, T-1, H, W, C))
 		pred_frames = torch.cat([video[:, :1], pred_frames], dim=1)
-
-		pred_seg = alpha_mask.argmax(dim=2)
 
 		return pred_frames, pred_seg, pred_flow, slots_t, att_t
 

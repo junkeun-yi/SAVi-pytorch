@@ -12,6 +12,8 @@ python -m savi.main --seed {} --wandb --group {} --exp {} --gpu {} --model_type 
 
 
 # examples
-python -m savi.main --seed 50 --wandb --group savi_movi_a --exp 6.15/50 --gpu 0,1,2,3
+python -m savi.main --seed 51 --wandb --group savi_movi_a --exp 6.15/51 --gpu 0,1,2,3
 
 python -m savi.main --tfds_name movi_c/128x128:1.0.0 --seed 50 --wandb --group savi_movi_c --exp 6.15/50 --gpu 4,7,8,9
+
+python -m savi.main --model_type flow --slice_decode_inputs --seed 99 --group test --exp flow_movia --gpu 0,1,2,3 --wandb

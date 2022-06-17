@@ -58,7 +58,7 @@ def get_args():
 	# Logging and Saving config
 	adrg('--log_loss_every_step', 50, int)
 	adrg('--eval_every_steps', 1000, int)
-	adrg('--checkpoint_every_steps', 5000)
+	adrg('--checkpoint_every_steps', 5000, int)
 	# adrg('--output_dir', './output_dir', help="path where to save, empty for no saving.")
 	# adrg('--log_dir', './output_dir', help="path where to log tensorboard log")
 	adrg('--exp', 'test', help="experiment name")
@@ -159,6 +159,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 	# TODO: only first epoch has scheduler, and does step-wise scheduling
 	if epoch == 0:
+		# scheduler = None
 		scheduler = lr_sched.get_cosine_schedule_with_warmup(optimizer, args.warmup_steps, args.num_train_steps, num_cycles=1, last_epoch=-1)
 	else:
 		scheduler = None
