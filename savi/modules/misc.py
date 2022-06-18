@@ -11,6 +11,7 @@ import numpy as np
 
 import savi.lib.metrics as metrics
 import savi.lib.metrics_jax as metrics_jax
+import savi.modules.evaluator as evaluator
 from savi.lib import utils
 
 DType = Any
@@ -287,7 +288,11 @@ class ReconLoss(nn.Module):
 		self.l2_weight = l2_weight
 
 	def forward(self, model_outputs, batch):
-		pred_flow = model_outputs["outputs"]["flow"]
+		if isinstance(model_outputs, dict):
+			pred_flow = model_outputs["outputs"]["flow"]
+		else:
+			# TODO: need to clean all of this up
+			pred_flow = model_outputs[1]
 		video, boxes, segmentations, gt_flow, padding_mask, mask = batch
 
 		# l2 loss between images and predicted images
@@ -306,7 +311,8 @@ class ARI(nn.Module):
 		video, boxes, segmentations, flow, padding_mask, mask = batch
 
 		# discard first frame as had conditional info.
-		pr_seg = model_outputs["outputs"]["segmentations"][:, 1:].squeeze(-1).int().cpu().numpy()
+		pr_seg = model_outputs[0][:, 1:].squeeze(-1).int().cpu().numpy()
+		# pr_seg = model_outputs["outputs"]["segmentations"][:, 1:].squeeze(-1).int().cpu().numpy()
 		gt_seg = segmentations[:, 1:].int().cpu().numpy()
 		input_pad = padding_mask[:, 1:].cpu().numpy()
 		mask = mask.cpu().numpy()

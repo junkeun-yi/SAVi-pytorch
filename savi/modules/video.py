@@ -125,6 +125,7 @@ class SAVi(nn.Module):
                 "via the `conditioning` variable, which cannot be `None`."
             )
             init_slots = conditioning[:, -1] # currently, only use last state.
+            # init_slots = conditioning # given [B, N, D], the slots of the last state
         else:
             # same as above but without encoded inputs.
             init_slots = self.initializer(
@@ -154,41 +155,35 @@ class SAVi(nn.Module):
 
         # TODO: do the decoding all at once instead of per-timestep like done here.
         outputs, outputs_pred, attn = None, None, None
+        slots_corrected_list, slots_predicted_list, attn_list = [], [], []
         predicted_slots = init_slots
         for t in range(T):
             slots = predicted_slots
             encoded_frame = encoded_inputs[:, t]
             corrected_slots, predicted_slots, attn_t = self.processor(slots, encoded_frame, padding_mask)
 
-            # Decode latent states.
-            if outputs is None and outputs_pred is None:
-                if self.decode_corrected:
-                    outputs = self.decoder(corrected_slots)
-                    for key, value in outputs.items():
-                        outputs[key] = value.unsqueeze(1)
-                if self.decode_predicted:
-                    outputs_pred = self.decoder(predicted_slots)
-                    for key, value in outputs_pred.items():
-                        outputs_pred[key] = value.unsqueeze(1)
-            else:
-                if self.decode_corrected:
-                    out = self.decoder(corrected_slots)
-                    for key, value in outputs.items():
-                        outputs[key] = torch.cat([value, out[key].unsqueeze(1)], dim=1)
-                if self.decode_predicted:
-                    out = self.decoder(predicted_slots)
-                    for key, value in outputs_pred.items():
-                        outputs_pred[key] = torch.cat([value, out[key].unsqueeze(1)], dim=1)
-            if attn == None:
-                attn = attn_t.unsqueeze(1)
-            else:
-                attn = torch.cat([attn, attn_t.unsqueeze(1)], dim=1)
+            slots_corrected_list.append(corrected_slots.unsqueeze(1))
+            slots_predicted_list.append(predicted_slots.unsqueeze(1))
+            attn_list.append(attn_t.unsqueeze(1))
 
-        # print(video.shape, encoded_inputs.shape, outputs["flow"].shape, slots.shape, init_slots.shape)
+        corrected_slots = torch.cat(slots_corrected_list, dim=1)
+        predicted_slots = torch.cat(slots_predicted_list, dim=1)
+        attn = torch.cat(attn_list, dim=1)
+
+        # Decode latent states
+        outputs = self.decoder(corrected_slots.flatten(0,1)) if self.decode_corrected else None
+        outputs_pred = self.decoder(predicted_slots.flatten(0,1)) if self.decode_predicted else None
+
+        if outputs is not None:
+            for key, value in outputs.items():
+                outputs[key] = value.reshape(B, T, *value.shape[1:])
+        if outputs_pred is not None:
+            for key, value in outputs_pred.items():
+                outputs_pred[key] = value.reshape(B, T, *value.shape[1:])
 
         return {
-            # "states": corrected_slots,
-            # "states_pred": predicted_slots,
+            "states": corrected_slots,
+            "states_pred": predicted_slots,
             "outputs": outputs,
             "outputs_pred": outputs_pred,
             "attention": attn

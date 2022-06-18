@@ -24,6 +24,7 @@ from savi.datasets.tfds import tfds_input_pipeline
 from savi.datasets.tfds.tfds_dataset_wrapper import MOViData
 import savi.modules as modules
 import savi.modules_flow as modules_flow
+import savi.modules.evaluator
 
 import savi.trainers.utils.misc as misc
 import savi.trainers.utils.lr_sched as lr_sched
@@ -84,7 +85,7 @@ def get_args():
 	adrg('--model_type', 'savi', help="model type")
 
 	# Evaluation
-	# adrg('--eval_slice_size', 6, int)
+	adrg('--eval_slice_size', 6, int)
 	# adrg('--eval_slice_keys', 'video,segmentations,flow,boxes')
 	parser.add_argument('--eval', action='store_true', help="Perform evaluation only")
 
@@ -257,8 +258,11 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		conditioning = boxes # TODO: don't hardcode
 
 		# compute output
-		outputs = model(video=video, conditioning=conditioning, 
-			padding_mask=padding_mask, **args.kwargs)
+		if args.model_type == "savi":
+			outputs = savi.modules.evaluator.eval_step(model, batch, slice_size=args.eval_slice_size)
+		else:
+			outputs = model(video=video, conditioning=conditioning, 
+				padding_mask=padding_mask, **args.kwargs)
 		loss = criterion(outputs, batch)
 		loss = loss.mean() # mean over devices
 		loss_value = loss.item()
@@ -277,10 +281,13 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		if i_batch < 3:
 			if args.model_type == "savi":
 				B, T, H, W, _ = video.shape
-				attn = outputs['attention'][0].squeeze(1)
+				# attn = outputs['attention'][0].squeeze(1)
+				attn = outputs[2][0].squeeze(1)
 				attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
-				pr_flow = outputs['outputs']['flow'][0]
-				pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
+				# pr_flow = outputs['outputs']['flow'][0]
+				pr_flow = outputs[1][0]
+				# pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
+				pr_seg = outputs[0][0].squeeze(-1)
 			else:
 				pr_flow = outputs[2][0]
 				B, T, H, W, _ = video.shape
@@ -295,7 +302,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 			pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
 			# visualize attention
 			misc.viz_slots_flow(video[0].cpu().numpy(), 
-				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), outputs['outputs']['alpha_mask'][0].squeeze(-1).reshape((T, -1, H, W)).cpu().numpy(), # attn.cpu().numpy(),
+				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
 				f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
 				trunk=8, send_to_wandb=True if args.wandb else False)
 			# visualize attention again
@@ -384,8 +391,8 @@ def run(args):
 	# eval only
 	if args.eval:
 		# assert isinstance(args.resume_from, str), "no snapshot given."
-		# evaluate(val_loader, model, criterion, evaluator, device, args, f"eval")
-		evaluate(train_loader, model, criterion, evaluator, device, args, f"eval")
+		evaluate(val_loader, model, criterion, evaluator, device, args, f"eval")
+		# evaluate(train_loader, model, criterion, evaluator, device, args, f"eval")
 		sys.exit(1)
 
 	for epoch in range(args.epochs):
