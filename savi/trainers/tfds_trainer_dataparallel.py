@@ -161,7 +161,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 	# TODO: only first epoch has scheduler, and does step-wise scheduling
 	if epoch == 0:
 		# scheduler = None
-		scheduler = lr_sched.get_cosine_schedule_with_warmup(optimizer, args.warmup_steps, args.num_train_steps, num_cycles=1, last_epoch=-1)
+		scheduler = lr_sched.get_cosine_schedule_with_warmup(optimizer, args.warmup_steps, args.num_train_steps, num_cycles=0.5, last_epoch=-1)
 	else:
 		scheduler = None
 
