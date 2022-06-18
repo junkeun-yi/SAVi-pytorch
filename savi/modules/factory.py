@@ -69,7 +69,7 @@ def build_model(args):
 			target_readout=modules.Readout(
 				keys=list(args.targets),
 				readout_modules=nn.ModuleList([
-					nn.Linear(64, out_features) for out_features in args.targets.values()])))
+					misc.LinearZeroBias(64, out_features) for out_features in args.targets.values()])))
 		# SAVi Model
 		model = modules.SAVi(
 			encoder=encoder,

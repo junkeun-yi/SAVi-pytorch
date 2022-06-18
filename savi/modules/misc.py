@@ -108,6 +108,10 @@ class MLP(nn.Module):
 		self.model.add_module("dense_mlp_out", nn.Linear(self.hidden_size, self.output_size))
 		if self.activate_output:
 			self.model.add_module("dense_mlp_out_act", self.activation_fn())
+		# set biases to zero, like in jax
+		for name, param in self.model.named_parameters():
+			if 'bias' in name:
+				torch.nn.init.zeros_(param)
 
 	def forward(self, inputs: Array, train: bool = False) -> Array:
 		del train # Unused
@@ -144,22 +148,23 @@ class MLP(nn.Module):
 #         return carry
 
 
-# class Dense(nn.Module):
-#     """Dense layer as nn.Module accepting "train" flag. """
+class LinearZeroBias(nn.Module):
+	"""nn.Linear with bias initialized as zeros."""
 
-#     def __init__(self,
-#                  input_shape: int, # FIXME: added for submodules
-#                  features: int,
-#                  use_bias: bool = True
-#                 ):
-#         super().__init__()
+	def __init__(self,
+				 input_shape: int, # FIXME: added for submodules
+				 features: int,
+				 use_bias: bool = True
+				):
+		super().__init__()
 		
-#         # submodules
-#         self.dense = nn.Linear(input_shape, features, use_bias)
+		# submodules
+		self.dense = nn.Linear(input_shape, features, use_bias)
+		if use_bias:
+			nn.init.zeros_(self.dense.bias)
 
-#     def forward(self, inputs: Array, train: bool = False) -> Array:
-#         del train # Unused.
-#         return self.dense(inputs)
+	def forward(self, inputs: Array) -> Array:
+		return self.dense(inputs)
 
 
 class PositionEmbedding(nn.Module):
@@ -203,10 +208,12 @@ class PositionEmbedding(nn.Module):
 		self.trainable_pos_embedding = trainable_pos_embedding
 
 		# submodules defined in module.
+		# TODO: this might be wrong
 		self.pos_embedding = nn.Parameter(self._make_pos_embedding_tensor(input_shape),
 										  requires_grad=self.trainable_pos_embedding)
 		if self.update_type == "project_add":
 			self.project_add_dense = nn.Linear(self.pos_embedding.shape[-1], input_shape[-1])
+			nn.init.zeros_(self.project_add_dense.bias)
 
 
 	# TODO: validate
