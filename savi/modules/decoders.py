@@ -66,7 +66,7 @@ class SpatialBroadcastDecoder(nn.Module):
 		alpha_mask = alpha_logits.softmax(dim=1)
 
 		# TODO: figure out what to do with readout.
-		targets_dict = self.target_readout(bb_features)
+		targets_dict = self.target_readout(bb_features.reshape(shape=(-1, bb_features.shape[-1])))
 
 		preds_dict = dict()
 		for target_key, channels in targets_dict.items():

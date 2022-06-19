@@ -369,7 +369,6 @@ class TransformerBlock(nn.Module):
             # Self-attention on queries.
             x = queries
             x, _ = self.attn_self(query=x, key=x, value=x)
-            # print(x, queries) # TODO: why is this always NaN ?
             x = x + queries
             x = self.layernorm_query(x)
 

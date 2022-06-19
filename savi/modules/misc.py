@@ -100,14 +100,14 @@ class MLP(nn.Module):
 			self.layernorm_module = nn.LayerNorm(output_size)
 		## mlp
 		self.model = nn.ModuleList()
-		self.model.add_module("dense_mlp_init", nn.Linear(self.input_size, self.hidden_size))
-		self.model.add_module("dense_mlp_init_act", self.activation_fn())
-		for i in range(self.num_hidden_layers):
+		self.model.add_module("dense_mlp_0", nn.Linear(self.input_size, self.hidden_size))
+		self.model.add_module("dense_mlp_0_act", self.activation_fn())
+		for i in range(1, self.num_hidden_layers):
 			self.model.add_module(f"den_mlp_{i}", nn.Linear(self.hidden_size, self.hidden_size))
 			self.model.add_module(f"dense_mlp_{i}_act", self.activation_fn())
-		self.model.add_module("dense_mlp_out", nn.Linear(self.hidden_size, self.output_size))
+		self.model.add_module(f"dense_mlp_{self.num_hidden_layers}", nn.Linear(self.hidden_size, self.output_size))
 		if self.activate_output:
-			self.model.add_module("dense_mlp_out_act", self.activation_fn())
+			self.model.add_module(f"dense_mlp_{self.num_hidden_layers}_act", self.activation_fn())
 
 	def forward(self, inputs: Array, train: bool = False) -> Array:
 		del train # Unused
@@ -258,8 +258,7 @@ class PositionEmbedding(nn.Module):
 			# Here, we project the position encodings to the same dimensionality as
 			# the inputs and add them to the inputs (broadcast along batch dimension).
 			# This is roughly equivalent to concatenation of position encodings to the
-			# inpus (if followed by a Dense layer), but is slightly more efficient.
-			# (96, 64, 64, 32) + (1, 4, 4, 2)
+			# inputs (if followed by a Dense layer), but is slightly more efficient.
 			x = inputs + self.project_add_dense(pos_embedding)
 		elif self.update_type == "concat":
 			# Repeat the position embedding along the first (batch) dimension.
