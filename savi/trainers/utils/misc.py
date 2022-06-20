@@ -16,8 +16,11 @@ import time
 from collections import defaultdict, deque
 from pathlib import Path
 from pyparsing import line_end
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+import dataclasses
 
 import torch
+import torch.nn as nn
 import torch.distributed as dist
 from torch._six import inf
 
@@ -348,6 +351,107 @@ def all_reduce_mean(x):
 
 ####################################
 # I added these
+
+@dataclasses.dataclass
+class ParamRow:
+  name: str
+  shape: Tuple[int]
+  size: int
+
+
+@dataclasses.dataclass
+class ParamRowWithStats(ParamRow):
+  mean: float
+  std: float
+
+def _default_table_value_formatter(value):
+  """Formats ints with "," between thousands and floats to 3 digits."""
+  if isinstance(value, bool):
+    return str(value)
+  elif isinstance(value, int):
+    return "{:,}".format(value)
+  elif isinstance(value, float):
+    return "{:.3}".format(value)
+  else:
+    return str(value)
+
+def make_table(
+    rows: List[Any],
+    *,
+    column_names: Optional[Sequence[str]] = None,
+    value_formatter: Callable[[Any], str] = _default_table_value_formatter,
+    max_lines: Optional[int] = None,
+) -> str:
+  """Renders a list of rows to a table.
+
+  Args:
+    rows: List of dataclass instances of a single type (e.g. `ParamRow`).
+    column_names: List of columns that that should be included in the output. If
+      not provided, then the columns are taken from keys of the first row.
+    value_formatter: Callable used to format cell values.
+    max_lines: Don't render a table longer than this.
+
+  Returns:
+    A string representation of the table in the form:
+
+    +---------+---------+
+    | Col1    | Col2    |
+    +---------+---------+
+    | value11 | value12 |
+    | value21 | value22 |
+    +---------+---------+
+  """
+
+  if any(not dataclasses.is_dataclass(row) for row in rows):
+    raise ValueError("Expected `rows` to be list of dataclasses")
+  if len(set(map(type, rows))) > 1:
+    raise ValueError("Expected elements of `rows` be of same type.")
+
+  class Column:
+
+    def __init__(self, name, values):
+      self.name = name.capitalize()
+      self.values = values
+      self.width = max(len(v) for v in values + [name])
+
+  if column_names is None:
+    if not rows:
+      return "(empty table)"
+    column_names = [field.name for field in dataclasses.fields(rows[0])]
+
+  columns = [
+      Column(name, [value_formatter(getattr(row, name))
+                    for row in rows])
+      for name in column_names
+  ]
+
+  var_line_format = "|" + "".join(f" {{: <{c.width}s}} |" for c in columns)
+  sep_line_format = var_line_format.replace(" ", "-").replace("|", "+")
+  header = var_line_format.replace(">", "<").format(*[c.name for c in columns])
+  separator = sep_line_format.format(*["" for c in columns])
+
+  lines = [separator, header, separator]
+  for i in range(len(rows)):
+    if max_lines and len(lines) >= max_lines - 3:
+      lines.append("[...]")
+      break
+    lines.append(var_line_format.format(*[c.values[i] for c in columns]))
+  lines.append(separator)
+
+  return "\n".join(lines)
+
+def parameter_overview(model: nn.Module):
+	rows = []
+	for name, value in model.named_parameters():
+		rows.append(ParamRowWithStats(
+			name=name, shape=tuple(value.shape),
+			size=int(np.prod(value.shape)),
+			mean=float(value.mean()),
+			std=float(value.std())))
+	total_weights = sum([np.prod(v.shape) for v in model.parameters()])
+	column_names = [field.name for field in dataclasses.fields(ParamRowWithStats)]
+	table = make_table(rows, column_names=column_names)
+	return table + f"\nTotal: {total_weights:,}"
 
 # TODO: make output path absolute and not assuming an experiments dir
 def save_snapshot(args, model, optimizer, global_step, output_fn):

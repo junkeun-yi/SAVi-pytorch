@@ -367,6 +367,9 @@ def run(args):
 	criterion = criterion.to(device)
 	evaluator = evaluator.to(device)
 
+	# print parameter overview # TODO: log this
+	print(misc.parameter_overview(model))
+
 	# build optimizer
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
