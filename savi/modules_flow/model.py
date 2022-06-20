@@ -96,26 +96,31 @@ class FlowPrediction(nn.Module):
 		att_t = att_t.reshape(shape=(B, T, N, (h*w))).permute(0, 1, 3, 2)
 
 		# get objet-wise masks. alpha mask = (B T N H W 1)
-		pred_seg = None
-		if kwargs.get('slice_decode_inputs'):
-			# decode over slices to bypass memory constraints
-			# just do every timestep separately. (naive)
-			alpha_mask = []
-			pred_seg = []
-			for t in range(T):
-				decoded = self.decoder(slots_t[:, t:t+1].reshape(shape=(B, N, S)))
-				alpha_mask.append(decoded["alpha_mask"].unsqueeze(1))
-				if "segmentations" in decoded:
-					pred_seg.append(decoded["segmentations"].unsqueeze(1))
-			alpha_mask = torch.cat(alpha_mask, dim=1)
-			if len(pred_seg) > 0:
-				pred_seg = torch.cat(pred_seg, dim=1)
-		else:
-			decoded = self.decoder(slots_t.reshape(shape=(B*T, N, S)))
-			alpha_mask = decoded["alpha_mask"].reshape(shape=(B, T, N, H, W, 1))
-			if "segmentations" in decoded:
-				pred_seg = decoded["segmentations"].reshape(shape=(B, T, H, W, 1))
-		# TODO: something is wrong with the shaping of these masks and such.
+		# pred_seg = None
+		# if kwargs.get('slice_decode_inputs'):
+		# 	# decode over slices to bypass memory constraints
+		# 	# just do every timestep separately. (naive)
+		# 	alpha_mask = []
+		# 	pred_seg = []
+		# 	for t in range(T):
+		# 		decoded = self.decoder(slots_t[:, t:t+1].reshape(shape=(B, N, S)))
+		# 		alpha_mask.append(decoded["alpha_mask"].unsqueeze(1))
+		# 		if "segmentations" in decoded:
+		# 			pred_seg.append(decoded["segmentations"].unsqueeze(1))
+		# 	alpha_mask = torch.cat(alpha_mask, dim=1)
+		# 	if len(pred_seg) > 0:
+		# 		pred_seg = torch.cat(pred_seg, dim=1)
+		# else:
+		# 	decoded = self.decoder(slots_t.reshape(shape=(B*T, N, S)))
+		# 	alpha_mask = decoded["alpha_mask"].reshape(shape=(B, T, N, H, W, 1))
+		# 	if "segmentations" in decoded:
+		# 		pred_seg = decoded["segmentations"].reshape(shape=(B, T, H, W, 1))
+		# TODO: alpha masks are really bad for some reason.
+		# Somehow, all the slots_t are basically the same for each slot.
+		# maybe use attention mask instead of alpha masks to debug, like in original model.
+		# also, break up model to look more like original model ?
+		alpha_mask = att_t.permute(0, 1, 3, 2).reshape(shape=(B,T,N,H,W,1))
+		pred_seg = alpha_mask.argmax(2)
 
 		# get predicted flow per object
 		adjacent_slots = torch.cat([slots_t[:, :-1], slots_t[:, 1:]], dim=-1)
