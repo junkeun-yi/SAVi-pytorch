@@ -70,18 +70,18 @@ class FlowPrediction(nn.Module):
 		B, T, H, W, C = video.shape
 		# encode and position embed.
 		# flatten over batch * time and encode to get [B, T, h* w*, F]
-		enc = self.encoder(video.flatten(0, 1))
+		enc = self.encoder(video.reshape(shape=(B*T, H, W, C)))
 		_, h, w, F = enc.shape
 		enc = enc.reshape(shape=(B, T, h, w, F))
 		
 		# initialize slots. [B, N, S] where N = num_slots, S = slot_dim
 		slots = self.initializer(
-			conditioning, batch_size=video.shape[0])
+			conditioning, batch_size=B)
 		_, N, S = slots.shape
 
 		# get attn b/w slots and spatio-temporal features
 		# attn with inputs as [B (T h* w*) F]
-		slots, _ = self.obj_slot_attn(slots, enc.flatten(1, 3))
+		slots, _ = self.obj_slot_attn(slots, enc.reshape(shape=(B, T*h*w, F)))
 
 		# slots = ((B T) N S)
 		slots = slots.repeat_interleave(T, 0)
@@ -89,7 +89,7 @@ class FlowPrediction(nn.Module):
 		# get attn b/w slots and spatial features
 		# attn with inputs as [(B T) (h* w*) F]
 		# slots_t, att_t = self.obj_slot_attn(slots, enc.flatten(2, 3).flatten(0, 1))
-		slots_t, att_t = self.obj_slot_attn.compute_attention(slots, enc.flatten(2,3).flatten(0,1))
+		slots_t, att_t = self.obj_slot_attn.compute_attention(slots, enc.reshape(shape=(B*T, h*w, F)))
 
 		# slots_t = [B T N S], att_t = (B T (h* w*) N)
 		slots_t = slots_t.reshape(shape=(B, T, N, S))
@@ -103,15 +103,15 @@ class FlowPrediction(nn.Module):
 			alpha_mask = []
 			pred_seg = []
 			for t in range(T):
-				decoded = self.decoder(slots_t[:, t:t+1].flatten(0,1))
+				decoded = self.decoder(slots_t[:, t:t+1].reshape(shape=(B, N, S)))
 				alpha_mask.append(decoded["alpha_mask"].unsqueeze(1))
 				if "segmentations" in decoded:
 					pred_seg.append(decoded["segmentations"].unsqueeze(1))
-			alpha_mask = torch.cat(alpha_mask, 1)
+			alpha_mask = torch.cat(alpha_mask, dim=1)
 			if len(pred_seg) > 0:
-				pred_seg = torch.cat(pred_seg, 1)
+				pred_seg = torch.cat(pred_seg, dim=1)
 		else:
-			decoded = self.decoder(slots_t.flatten(0, 1))
+			decoded = self.decoder(slots_t.reshape(shape=(B*T, N, S)))
 			alpha_mask = decoded["alpha_mask"].reshape(shape=(B, T, N, H, W, 1))
 			if "segmentations" in decoded:
 				pred_seg = decoded["segmentations"].reshape(shape=(B, T, H, W, 1))

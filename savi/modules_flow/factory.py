@@ -21,7 +21,7 @@ def build_model(args):
 			padding="same",
 			layer_transpose=[False, False, False, False]),
 		pos_emb=modules.PositionEmbedding(
-			input_shape=(args.batch_size, 64, 64, 32),
+			input_shape=(-1, 64, 64, 32),
 			embedding_type="linear",
 			update_type="project_add",
 			output_transform=modules.MLP(
@@ -46,7 +46,7 @@ def build_model(args):
 			transpose_double=True,
 			layer_transpose=[True, True, True, False]),
 		pos_emb=modules.PositionEmbedding(
-			input_shape=(args.batch_size, 8, 8, slot_size),
+			input_shape=(-1, 8, 8, slot_size),
 			embedding_type="linear",
 			update_type="project_add"),
 		target_readout=modules.misc.DummyReadout())
