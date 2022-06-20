@@ -278,45 +278,46 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 		print(f"{i_batch+1} / {len_data}, loss: {loss_value}, running_ari: {ari_running['total'] / ari_running['count']}, running_ari_fg: {ari_nobg_running['total'] / ari_nobg_running['count']}", end='\r')
 
 		# visualize first 3 iterations
-		if i_batch < 3:
-			if args.model_type == "savi":
-				B, T, H, W, _ = video.shape
-				# attn = outputs['attention'][0].squeeze(1)
-				attn = outputs[2][0].squeeze(1)
-				attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
-				# pr_flow = outputs['outputs']['flow'][0]
-				pr_flow = outputs[1][0]
-				# pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
-				pr_seg = outputs[0][0].squeeze(-1)
-			else:
-				pr_flow = outputs[2][0]
-				B, T, H, W, _ = video.shape
-				pr_flow = torch.cat([torch.zeros(1,H,W,2).to(pr_flow.get_device()), pr_flow], dim=0)
-				pr_flow = torchvision.utils.flow_to_image(
-					pr_flow.permute(0,3,1,2)).permute(0,2,3,1).reshape(shape=(T, H, W, 3))
-				attn = outputs[4][0]
-				attn = attn.reshape(shape=(T, H, W, args.num_slots)).permute(0, 3, 1, 2)
-				pr_seg = outputs[1][0].squeeze(-1)
-				pr_vid = outputs[0][0]
-				pr_vid = torch.clamp(pr_vid, 0.0, 1.0)
-			pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
-			# visualize attention
-			misc.viz_slots_flow(video[0].cpu().numpy(), 
-				flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
-				f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
-				trunk=8, send_to_wandb=True if args.wandb else False)
-			# visualize attention again
-			if args.model_type == "flow":
-				misc.viz_slots_frame_pred(video[0].cpu().numpy(), 
-					pr_vid.cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
-					f"./experiments/{args.group}_{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
-					trunk=6, send_to_wandb=True if args.wandb else False)
-			# visualize segmentation
-			misc.viz_seg(video[0].cpu().numpy(), 
-				segmentations[0].int().cpu().numpy(),
-				pr_seg.int().cpu().numpy(), 
-				f"./experiments/{args.group}_{args.exp}/viz_seg/{name}_{i_batch}.png",
-				trunk=3, send_to_wandb=True if args.wandb else False)
+		if i_batch == 0:
+			for i_sample in range(3):
+				if args.model_type == "savi":
+					B, T, H, W, _ = video.shape
+					# attn = outputs['attention'][0].squeeze(1)
+					attn = outputs[2][i_sample].squeeze(1)
+					attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
+					# pr_flow = outputs['outputs']['flow'][0]
+					pr_flow = outputs[1][i_sample]
+					# pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
+					pr_seg = outputs[0][i_sample].squeeze(-1)
+				else:
+					pr_flow = outputs[2][i_sample]
+					B, T, H, W, _ = video.shape
+					pr_flow = torch.cat([torch.zeros(1,H,W,2).to(pr_flow.get_device()), pr_flow], dim=0)
+					pr_flow = torchvision.utils.flow_to_image(
+						pr_flow.permute(0,3,1,2)).permute(0,2,3,1).reshape(shape=(T, H, W, 3))
+					attn = outputs[4][i_sample]
+					attn = attn.reshape(shape=(T, H, W, args.num_slots)).permute(0, 3, 1, 2)
+					pr_seg = outputs[1][i_sample].squeeze(-1)
+					pr_vid = outputs[0][i_sample]
+					pr_vid = torch.clamp(pr_vid, 0.0, 1.0)
+				pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
+				# visualize attention
+				misc.viz_slots_flow(video[i_sample].cpu().numpy(),
+					flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
+					f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
+					trunk=8, send_to_wandb=True if args.wandb else False)
+				# visualize attention again
+				if args.model_type == "flow":
+					misc.viz_slots_frame_pred(video[i_sample].cpu().numpy(),
+						pr_vid.cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
+						f"./experiments/{args.group}_{args.exp}/viz_slots_frame_pred/{name}_{i_batch}.png",
+						trunk=6, send_to_wandb=True if args.wandb else False)
+				# visualize segmentation
+				misc.viz_seg(video[i_sample].cpu().numpy(),
+					segmentations[i_sample].int().cpu().numpy(),
+					pr_seg.int().cpu().numpy(),
+					f"./experiments/{args.group}_{args.exp}/viz_seg/{name}_{i_batch}.png",
+					trunk=3, send_to_wandb=True if args.wandb else False)
 	final_loss = loss_value
 	final_ari = ari_running['total'] / ari_running['count']
 	final_ari_nobg = ari_nobg_running['total'] / ari_nobg_running['count']
