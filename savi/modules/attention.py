@@ -123,7 +123,7 @@ class InvertedDotProductAttention(nn.Module):
     def __init__(self,
                  input_size: int, # qkv_size # FIXME: added for submodules
                  output_size: int, # FIXME: added for submodules
-                 num_heads: Optional[int] = None, # FIXME: added for submodules
+                 num_heads: Optional[int] = 1, # FIXME: added for submodules
                  norm_type: Optional[str] = "mean", # mean, layernorm, or None
                  # multi_head: bool = False, # FIXME: can infer from num_heads.
                  epsilon: float = 1e-8,
@@ -132,8 +132,10 @@ class InvertedDotProductAttention(nn.Module):
                 ):
         super().__init__()
 
+        assert num_heads >= 1 and isinstance(num_heads, int)
+
         self.norm_type = norm_type
-        self.multi_head = True if num_heads is not None else False
+        self.multi_head = True if num_heads > 1 else False
         self.epsilon = epsilon
         self.dtype = dtype
 
@@ -316,7 +318,8 @@ class TransformerBlock(nn.Module):
                  num_heads: int,
                  qkv_size: int,
                  mlp_size: int,
-                 pre_norm: bool = False
+                 pre_norm: bool = False,
+                 cross_attn: bool = False
                 ):
         super().__init__()
 
@@ -330,14 +333,14 @@ class TransformerBlock(nn.Module):
         self.attn_self = nn.MultiheadAttention(
             embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
         self.attn_cross = nn.MultiheadAttention(
-            embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
+            embed_dim=embed_dim, num_heads=num_heads, batch_first=True) if cross_attn else None
         ## mlps
         self.mlp = misc.MLP(
             input_size=embed_dim, hidden_size=mlp_size, 
             output_size=embed_dim)
         ## layernorms
         self.layernorm_query = nn.LayerNorm(embed_dim)
-        self.layernorm_inputs = nn.LayerNorm(embed_dim)
+        self.layernorm_inputs = nn.LayerNorm(embed_dim) if cross_attn else None
         self.layernorm_mlp = nn.LayerNorm(embed_dim)
 
     def forward(self, queries: Array, inputs: Optional[Array] = None,

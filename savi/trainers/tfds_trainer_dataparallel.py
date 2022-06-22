@@ -303,7 +303,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 				pr_flow = torch.clamp(pr_flow, 0.0, 1.0)
 				# visualize attention
 				misc.viz_slots_flow(video[i_sample].cpu().numpy(),
-					flow[0].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
+					flow[i_sample].cpu().numpy(), pr_flow.cpu().numpy(), attn.cpu().numpy(),
 					f"./experiments/{args.group}_{args.exp}/viz_slots_flow/{name}_{i_batch}.png",
 					trunk=8, send_to_wandb=True if args.wandb else False)
 				# visualize attention again
