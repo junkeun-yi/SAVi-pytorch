@@ -8,6 +8,7 @@ import numpy as np
 import torchvision.transforms as transforms
 
 import savi.lib.metrics as metrics
+import savi.lib.metrics_jax as metrics_jax
 
 #####################################################
 # Losses
@@ -51,15 +52,15 @@ class ARI(nn.Module):
 		input_pad = padding_mask[:, 1:-1].cpu().numpy()
 		mask = mask.cpu().numpy()
 
-		ari_bg = metrics.Ari.from_model_output(
-		# ari_bg = metrics_jax.Ari.from_model_output(
+		# ari_bg = metrics.Ari.from_model_output(
+		ari_bg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
 			padding_mask=input_pad,
 			ground_truth_max_num_instances=args.max_instances + 1,
 			predicted_max_num_instances=args.num_slots,
 			ignore_background=False, mask=mask)
-		ari_nobg = metrics.Ari.from_model_output(
-		# ari_nobg = metrics_jax.Ari.from_model_output(
+		# ari_nobg = metrics.Ari.from_model_output(
+		ari_nobg = metrics_jax.Ari.from_model_output(
 			predicted_segmentations=pr_seg, ground_truth_segmentations=gt_seg,
 			padding_mask=input_pad,
 			ground_truth_max_num_instances=args.max_instances + 1,
