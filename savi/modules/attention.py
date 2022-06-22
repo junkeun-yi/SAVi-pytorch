@@ -245,7 +245,7 @@ class GeneralizedDotProductAttention(nn.Module):
         query = query / (qk_features ** 0.5) # torch.sqrt(qk_features)
 
         # attn.shape = (batch..., num_heads, q_num, kv_num)
-        attn = torch.einsum("bqhd,bkhd->bhqk", query, key)
+        attn = torch.einsum("bqhd,bkhd->bhqk", query, key) # TODO: verify if shapes are correct
 
         if self.inverted_attn:
             attention_dim = -2 # Query dim
