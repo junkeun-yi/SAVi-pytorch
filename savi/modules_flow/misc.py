@@ -47,9 +47,12 @@ class ARI(nn.Module):
 
 		# discard first frame as had conditional info.
 		# discard last frame as we don't mask the last frame.
-		pr_seg = pred_seg[:, 1:-1].squeeze(-1).int().cpu().numpy()
-		gt_seg = segmentations[:, 1:-1].int().cpu().numpy()
-		input_pad = padding_mask[:, 1:-1].cpu().numpy()
+		# pr_seg = pred_seg[:, 1:-1].squeeze(-1).int().cpu().numpy()
+		# gt_seg = segmentations[:, 1:-1].int().cpu().numpy()
+		# input_pad = padding_mask[:, 1:-1].cpu().numpy()
+		pr_seg = pred_seg[:, 1:].squeeze(-1).int().cpu().numpy()
+		gt_seg = segmentations[:, 1:].int().cpu().numpy()
+		input_pad = padding_mask[:, 1:].cpu().numpy()
 		mask = mask.cpu().numpy()
 
 		# ari_bg = metrics.Ari.from_model_output(

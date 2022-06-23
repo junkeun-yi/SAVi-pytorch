@@ -118,7 +118,20 @@ def build_model(args):
 		prepend_background=True,
 		center_of_mass=False)
 	# Mask Decoder
-	mask_decoder = None
+	decoder = modules_flow.SpatialBroadcastMaskDecoder(
+		resolution=(8,8),
+		backbone=modules.CNN(
+				features=[slot_size, 64, 64, 64, 64],
+				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
+				strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
+				padding=[2, 2, 2, "same"],
+				transpose_double=True,
+				layer_transpose=[True, True, True, False]),
+		pos_emb=modules.PositionEmbedding(
+			input_shape=(-1, 8, 8, slot_size),
+			embedding_type="linear",
+			update_type="project_add"))
+	mask_decoder = decoder # None
 	# Flow Prediction Model
 	model = modules_flow.FlowPrediction(
 		encoder=encoder,
@@ -132,9 +145,75 @@ def build_model(args):
 	return model
 
 
+def build_model_frame_pred(args):
+	slot_size = 128
+	num_slots = args.num_slots
+	# Encoder
+	encoder = modules.CNN(
+		features=[3, 32, 32, 32, 32],
+		kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
+		strides=[(1, 1), (1, 1), (1, 1), (1, 1)],
+		padding="same",
+		layer_transpose=[False, False, False, False])
+	# Decoder
+	decoder = modules_flow.SpatialBroadcastMaskDecoder(
+		resolution=(8,8),
+		backbone=modules.CNN(
+				features=[slot_size, 64, 64, 64, 64],
+				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
+				strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
+				padding=[2, 2, 2, "same"],
+				transpose_double=True,
+				layer_transpose=[True, True, True, False]),
+		pos_emb=modules.PositionEmbedding(
+			input_shape=(-1, 8, 8, slot_size),
+			embedding_type="linear",
+			update_type="project_add"))
+	# Positional Embedding
+	pos_embed=modules.PositionEmbedding(
+		input_shape=(-1, 64, 64, 32),
+		embedding_type="linear",
+		update_type="project_add",
+		output_transform=modules.MLP(
+			input_size=32,
+			hidden_size=64,
+			output_size=32,
+			layernorm="pre"))
+	# Object Slot Attention
+	obj_slot_attn = modules.SlotAttention(
+		input_size=32, # TODO: validate, should be backbone output size
+		qkv_size=128,
+		slot_size=slot_size,
+		num_iterations=3)
+	# Object Frame Predictor
+	obj_frame_pred = modules_flow.model.create_mlp(
+		input_dim=decoder.backbone.features[-1],
+		output_dim=3)
+	# Initializer
+	initializer = modules.CoordinateEncoderStateInit(
+		embedding_transform=modules.MLP(
+			input_size=4, # bounding boxes have feature size 4
+			hidden_size=slot_size*2,
+			output_size=slot_size,
+			layernorm=None),
+		prepend_background=True,
+		center_of_mass=False)
+	# Flow Prediction Model
+	model = modules_flow.FramePrediction(
+		encoder=encoder,
+		decoder=decoder,
+		pos_embed=pos_embed,
+		obj_slot_attn=obj_slot_attn,
+		obj_frame_pred=obj_frame_pred,
+		initializer=initializer
+	)
+	return model
+
+
 def build_modules(args):
 	"""Return the model and loss/eval processors."""
-	model = build_model(args)	
+	# model = build_model(args)
+	model = build_model_frame_pred(args)
 	loss = modules_flow.L2Loss()
 	metrics = modules_flow.ARI()
 
