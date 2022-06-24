@@ -7,13 +7,15 @@ import torch.nn.functional as F
 import numpy as np
 
 import savi.modules as modules
-import savi.modules.misc as misc
+import savi.modules_steve as modules_steve
+from savi.modules_steve import (conv2d, Conv2dBlock)
 
 
 def build_model(args):
 	if args.model_size == "small":
 		slot_size = 128
 		num_slots = args.num_slots
+		vocab_size = 4096
 		# Encoder
 		encoder = modules.FrameEncoder(
 			backbone=modules.CNN(
@@ -70,6 +72,40 @@ def build_model(args):
 				keys=list(args.targets),
 				readout_modules=nn.ModuleList([
 					nn.Linear(64, out_features) for out_features in args.targets.values()])))
+		
+		
+		
+		# dVAE
+		# for architecture, see appendix p.17 of https://arxiv.org/pdf/2205.14065.pdf
+		dvae = modules_steve.dVAE(
+			encoder=nn.Sequential(
+				Conv2dBlock(3, 64, 4, 4, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				conv2d(64, vocab_size, 1, 1, 0)),
+			decoder=nn.Sequential(
+				Conv2dBlock(vocab_size, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 3, 1, 1),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64 * 2 * 2, 1, 1, 0),
+				nn.PixelShuffle(2),
+				Conv2dBlock(64, 64, 3, 1, 1),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64, 1, 1, 0),
+				Conv2dBlock(64, 64 * 2 * 2, 1, 1, 0),
+				nn.PixelShuffle(2),
+				conv2d(64, 3, 1, 1, 0)))
+		
+		
+		
+		
+		
+		
 		# SAVi Model
 		model = modules.SAVi(
 			encoder=encoder,
