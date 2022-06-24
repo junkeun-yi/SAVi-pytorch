@@ -94,12 +94,15 @@ class CNN(nn.Module):
             pad = padding[i]
             if "convtranspose" == convname and isinstance(pad, str):
                 pad = 0
-            self.cnn_layers.add_module(
-                f"{convname}_{i}",
-                conv_module[self.layer_transpose[i]](
+            name = f"{convname}_{i}"
+            module = conv_module[self.layer_transpose[i]](
                     in_channels=features[i], out_channels=features[i+1],
                     kernel_size=kernel_size[i], stride=strides[i], padding=pad,
-                    bias=False if norm_type else True))
+                    bias=False if norm_type else True)
+            self.cnn_layers.add_module(name, module)
+
+            # init conv layer weights.
+            nn.init.xavier_uniform_(module.weight)
 
             ### Normalization Layer.
             if self.norm_type:
