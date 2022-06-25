@@ -118,6 +118,7 @@ class CNN(nn.Module):
         ## Final Dense Layer
         if self.output_size:
             self.project_to_output = nn.Linear(features[-1], self.output_size, bias=True)
+            nn.init.xavier_uniform_(self.project_to_output.weight)
 
     def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
         if channels_last:
