@@ -53,6 +53,10 @@ def build_model(args):
 			prepend_background=True,
 			center_of_mass=False)
 		# Decoder
+		readout_modules = nn.ModuleList([
+			nn.Linear(64, out_features) for out_features in args.targets.values()])
+		for module in readout_modules.children():
+			nn.init.xavier_uniform_(module.weight)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
 			backbone=modules.CNN(
@@ -68,8 +72,7 @@ def build_model(args):
 				update_type="project_add"),
 			target_readout=modules.Readout(
 				keys=list(args.targets),
-				readout_modules=nn.ModuleList([
-					nn.Linear(64, out_features) for out_features in args.targets.values()])))
+				readout_modules=readout_modules))
 		# SAVi Model
 		model = modules.SAVi(
 			encoder=encoder,
