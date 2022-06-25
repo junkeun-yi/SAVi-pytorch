@@ -63,6 +63,8 @@ class SlotAttention(nn.Module):
             num_heads=self.num_heads, norm_type="mean")
 
         self.gru = nn.GRUCell(slot_size, slot_size)
+        nn.init.xavier_uniform_(self.gru.weight_ih)
+        nn.init.orthogonal_(self.gru.weight_hh)
 
         if self.mlp_size is not None:
             self.mlp = misc.MLP(
