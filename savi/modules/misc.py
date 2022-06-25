@@ -108,7 +108,7 @@ class MLP(nn.Module):
 		self.model.add_module(f"dense_mlp_{self.num_hidden_layers}", nn.Linear(self.hidden_size, self.output_size))
 		if self.activate_output:
 			self.model.add_module(f"dense_mlp_{self.num_hidden_layers}_act", self.activation_fn())
-		for name, module in self.model:
+		for name, module in self.model.named_children():
 			if 'act' not in name:
 				nn.init.xavier_uniform_(module.weight)
 
