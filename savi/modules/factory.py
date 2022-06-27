@@ -84,9 +84,9 @@ def build_model(args):
 			decode_predicted=False)
 	else:
 		raise NotImplementedError
-	# for name, param in model.named_parameters():
-	# 	if 'bias' in name:
-	# 		nn.init.zeros_(param)
+	for name, param in model.named_parameters():
+		if 'bias' in name:
+			nn.init.zeros_(param)
 	return model
 
 
