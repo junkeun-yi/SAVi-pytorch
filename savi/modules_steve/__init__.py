@@ -12,5 +12,5 @@ and
 """
 
 from .dvae import (dVAE)
-from .model import (STEVE)
+from .model_steve import (STEVE)
 from .utils import (Conv2dBlock, conv2d)

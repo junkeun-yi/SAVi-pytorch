@@ -1,4 +1,4 @@
-"""Video Slot Attention model based on STEVE / SLATE."""
+"""Video Slot Attention model based on STEVE."""
 
 from typing import Any, Callable, Dict, Iterable, Mapping, NamedTuple, Optional, Tuple, Union
 
