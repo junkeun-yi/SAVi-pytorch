@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from savi.lib import utils
+from savi.lib.utils import lecun_normal_, lecun_uniform_
 
 Shape = Tuple[int]
 
@@ -40,7 +41,7 @@ class SpatialBroadcastMaskDecoder(nn.Module):
 
 		# submodules
 		self.mask_pred = nn.Linear(self.backbone.features[-1], 1)
-		nn.init.xavier_uniform_(self.mask_pred.weight)
+		lecun_normal_(self.mask_pred.weight)
 
 	def forward(self, slots: Array) -> Array:
 

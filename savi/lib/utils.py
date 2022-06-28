@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import math
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -82,6 +83,18 @@ def flatten_named_dicttree(metrics_res: DictTree, sep: str = "/"):
 #     """Gradient clipping with epsilon.
     
 #     """
+
+def lecun_uniform_(tensor, gain=1.):
+    fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
+    std = gain * math.sqrt(1.0 / float(fan_in))
+    a = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
+    return nn.init._no_grad_uniform_(tensor, -a, a)
+
+
+def lecun_normal_(tensor, gain=1.):
+    fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
+    std = gain * math.sqrt(1.0 / float(fan_in))
+    return nn.init._no_grad_normal_(tensor, 0., std)
 
 def spatial_broadcast(x: torch.Tensor, resolution: Sequence[int]) -> Array:
     """Broadcast flat inputs to a 2D grid of a given resolution."""

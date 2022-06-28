@@ -10,8 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import torchvision.transforms as transforms
-
 import math
+
+from savi.lib.utils import lecun_normal_, lecun_uniform_
 
 Shape = Tuple[int]
 
@@ -102,7 +103,7 @@ class CNN(nn.Module):
             self.cnn_layers.add_module(name, module)
 
             # init conv layer weights.
-            nn.init.xavier_uniform_(module.weight)
+            lecun_normal_(module.weight)
 
             ### Normalization Layer.
             if self.norm_type:
@@ -118,7 +119,7 @@ class CNN(nn.Module):
         ## Final Dense Layer
         if self.output_size:
             self.project_to_output = nn.Linear(features[-1], self.output_size, bias=True)
-            nn.init.xavier_uniform_(self.project_to_output.weight)
+            lecun_normal_(self.project_to_output.weight)
 
     def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
         if channels_last:

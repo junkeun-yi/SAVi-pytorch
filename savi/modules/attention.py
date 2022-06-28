@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from savi.modules import misc
+from savi.lib.utils import lecun_normal_, lecun_uniform_
 
 Shape = Tuple[int]
 
@@ -51,9 +52,9 @@ class SlotAttention(nn.Module):
         self.w_q = nn.Parameter(torch.Tensor(num_heads, slot_size, qkv_size))
         self.w_k = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
         self.w_v = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
-        nn.init.xavier_normal_(self.w_q)
-        nn.init.xavier_normal_(self.w_k)
-        nn.init.xavier_normal_(self.w_v)
+        lecun_normal_(self.w_q)
+        lecun_normal_(self.w_k)
+        lecun_normal_(self.w_v)
 
         self.layernorm_input = nn.LayerNorm(input_size)
         self.layernorm_q = nn.LayerNorm(qkv_size)
@@ -63,7 +64,7 @@ class SlotAttention(nn.Module):
             num_heads=self.num_heads, norm_type="mean")
 
         self.gru = nn.GRUCell(slot_size, slot_size)
-        nn.init.xavier_uniform_(self.gru.weight_ih)
+        lecun_normal_(self.gru.weight_ih)
         nn.init.orthogonal_(self.gru.weight_hh)
 
         if self.mlp_size is not None:
@@ -149,7 +150,7 @@ class InvertedDotProductAttention(nn.Module):
             dtype=self.dtype)
         if self.multi_head:
             self.w_o = nn.Parameter(torch.Tensor(num_heads, input_size, output_size))
-            nn.init.xavier_normal_(self.w_o)
+            lecun_normal_(self.w_o)
         if self.norm_type == "layernorm":
             self.layernorm = nn.LayerNorm(output_size)
 

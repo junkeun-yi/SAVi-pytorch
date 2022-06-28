@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from savi.lib.utils import lecun_normal_, lecun_uniform_
 
 import savi.modules as modules
 import savi.modules.misc as misc
@@ -56,7 +57,7 @@ def build_model(args):
 		readout_modules = nn.ModuleList([
 			nn.Linear(64, out_features) for out_features in args.targets.values()])
 		for module in readout_modules.children():
-			nn.init.xavier_uniform_(module.weight)
+			lecun_normal_(module.weight)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
 			backbone=modules.CNN(
