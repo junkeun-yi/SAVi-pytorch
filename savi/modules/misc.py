@@ -111,7 +111,7 @@ class MLP(nn.Module):
 			self.model.add_module(f"dense_mlp_{self.num_hidden_layers}_act", self.activation_fn())
 		for name, module in self.model.named_children():
 			if 'act' not in name:
-				lecun_normal_(module.weight)
+				nn.init.xavier_normal_(module.weight)
 
 	def forward(self, inputs: Array, train: bool = False) -> Array:
 		del train # Unused
@@ -211,7 +211,7 @@ class PositionEmbedding(nn.Module):
 										  requires_grad=self.trainable_pos_embedding)
 		if self.update_type == "project_add":
 			self.project_add_dense = nn.Linear(self.pos_embedding.shape[-1], input_shape[-1])
-			lecun_normal_(self.project_add_dense.weight)
+			nn.init.xavier_normal_(self.project_add_dense.weight)
 
 
 	# TODO: validate

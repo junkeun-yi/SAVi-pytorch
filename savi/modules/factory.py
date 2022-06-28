@@ -57,7 +57,7 @@ def build_model(args):
 		readout_modules = nn.ModuleList([
 			nn.Linear(64, out_features) for out_features in args.targets.values()])
 		for module in readout_modules.children():
-			lecun_normal_(module.weight)
+			nn.init.xavier_normal_(module.weight)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
 			backbone=modules.CNN(
