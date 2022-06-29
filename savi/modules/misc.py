@@ -302,7 +302,8 @@ class ReconLoss(nn.Module):
 		# l2 loss between images and predicted images
 		loss = self.l2_weight * self.l2(pred_flow, gt_flow)
 
-		return loss
+		# sum over elements, leaving [B, -1]
+		return loss.reshape(loss.shape[0], -1).sum(-1)
 
 
 #######################################################

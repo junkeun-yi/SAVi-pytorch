@@ -41,7 +41,7 @@ class SpatialBroadcastMaskDecoder(nn.Module):
 
 		# submodules
 		self.mask_pred = nn.Linear(self.backbone.features[-1], 1)
-		nn.init.xavier_normal_(self.mask_pred.weight)
+		nn.init.xavier_uniform_(self.mask_pred.weight)
 
 	def forward(self, slots: Array) -> Array:
 
