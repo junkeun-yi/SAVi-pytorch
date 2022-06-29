@@ -6,7 +6,7 @@
 
 from .attention import (GeneralizedDotProductAttention,
                         InvertedDotProductAttention, SlotAttention,
-                        TransformerBlock, Transformer)
+                        TransformerBlock, TransformerBlockOld, Transformer)
 from .convolution import CNN
 from .decoders import SpatialBroadcastDecoder
 from .initializers import (GaussianStateInit, ParamStateInit,

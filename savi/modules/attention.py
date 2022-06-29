@@ -313,7 +313,7 @@ class Transformer(nn.Module):
         return x
 
 
-class TransformerBlock(nn.Module):
+class TransformerBlockOld(nn.Module):
     """Tranformer decoder block."""
 
     def __init__(self,
@@ -386,6 +386,97 @@ class TransformerBlock(nn.Module):
                 y = self.layernorm_inputs(y)
             else:
                 y = x
+
+            # MLP
+            z = self.mlp(y)
+            z = z + y
+            z = self.layernorm_mlp(z)
+        return z
+
+
+class TransformerBlock(nn.Module):
+    """Tranformer decoder block."""
+
+    def __init__(self,
+                 embed_dim: int, # FIXME: added for submodules
+                 qkv_size: int,
+                 mlp_size: int,
+                 num_heads: int = 1,
+                 pre_norm: bool = False
+                ):
+        super().__init__()
+
+        self.embed_dim = embed_dim
+        self.qkv_size = qkv_size
+        self.mlp_size = mlp_size
+        self.num_heads = num_heads
+        self.pre_norm = pre_norm
+
+        assert num_heads >= 1
+        assert embed_dim % num_heads == 0, "embed dim must be divisible by num_heads"
+
+        # submodules
+        ## weights
+        self.w_qkv = nn.Linear(embed_dim, qkv_size*3)
+        nn.init.xavier_normal_(self.w_qkv.weight)
+        if self.num_heads > 1:
+            self.w_o = nn.Linear(qkv_size, embed_dim)
+            nn.init.xavier_normal_(self.w_o.weight)
+            self.multi_head = True
+        else:
+            self.multi_head = False
+        ## MHA #
+        self.attn = GeneralizedDotProductAttention()
+        ## mlps
+        self.mlp = misc.MLP(
+            input_size=embed_dim, hidden_size=mlp_size, 
+            output_size=embed_dim)
+        ## layernorms
+        self.layernorm_query = nn.LayerNorm(embed_dim)
+        self.layernorm_mlp = nn.LayerNorm(embed_dim)
+
+    def forward(self, inputs: Array) -> Array:
+        assert inputs.ndim == 3
+
+        B, L, _ = inputs.shape
+        head_dim = self.embed_dim // self.num_heads
+
+        if self.pre_norm:
+            # Self-attention.
+            x = self.layernorm_query(inputs)
+            qkv = self.w_qkv(x).view(B, L, self.num_heads, head_dim*3)
+            q = qkv[:, :, :, :head_dim]
+            k = qkv[:, :, :, head_dim:-head_dim]
+            v = qkv[:, :, :, -head_dim:]
+            x, _ = self.attn(query=q, key=k, value=v)
+            if self.multi_head:
+                x = self.w_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
+            else:
+                x = x.squeeze(-2)
+            x = x + inputs
+
+            y = x
+
+            # MLP
+            z = self.layernorm_mlp(y)
+            z = self.mlp(z)
+            z = z + y
+        else:
+            # Self-attention on queries.
+            x = inputs
+            qkv = self.w_qkv(x).view(B, L, self.num_heads, head_dim*3)
+            q = qkv[:, :, :, :head_dim]
+            k = qkv[:, :, :, head_dim:-head_dim]
+            v = qkv[:, :, :, -head_dim:]
+            x, _ = self.attn(query=q, key=k, value=v)
+            if self.multi_head:
+                x = self.w_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
+            else:
+                x = x.squeeze(-2)
+            x = x + inputs
+            x = self.layernorm_query(x)
+
+            y = x
 
             # MLP
             z = self.mlp(y)
