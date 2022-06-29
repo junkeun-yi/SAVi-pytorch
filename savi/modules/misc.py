@@ -285,7 +285,7 @@ class PositionEmbedding(nn.Module):
 class ReconLoss(nn.Module):
 	"""L2 loss."""
 	
-	def __init__(self, l2_weight=1, reduction="mean"):
+	def __init__(self, l2_weight=1, reduction="none"):
 		super().__init__()
 
 		self.l2 = nn.MSELoss(reduction=reduction)
@@ -302,7 +302,7 @@ class ReconLoss(nn.Module):
 		# l2 loss between images and predicted images
 		loss = self.l2_weight * self.l2(pred_flow, gt_flow)
 
-		return loss.mean()
+		return loss
 
 
 #######################################################
