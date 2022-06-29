@@ -181,7 +181,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
 		loss = criterion(outputs, batch)
-		loss = loss.sum() # sum over devices
+		loss = loss.mean() # sum over elements, mean over batch.
 
 		loss_value = loss.item()
 

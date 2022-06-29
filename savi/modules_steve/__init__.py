@@ -12,5 +12,6 @@ and
 """
 
 from .dvae import (dVAE)
+from .model_slate import (SLATE, OneHotDictionary)
 from .model_steve import (STEVE)
 from .utils import (Conv2dBlock, conv2d)

@@ -72,9 +72,23 @@ def build_model(args):
 				keys=list(args.targets),
 				readout_modules=nn.ModuleList([
 					nn.Linear(64, out_features) for out_features in args.targets.values()])))
-		
-		
-		
+		"""
+		num_slots: int,
+		vocab_size: int,
+		slot_size: int,
+		d_model: int,
+		dvae: nn.Module,
+		pos_emb: nn.Module,
+		slot_attn: nn.Module,
+		dictionary: nn.Module,
+		encoder: nn.Module,
+		decoder: nn.Module
+		"""
+		num_slots = 1
+		slot_size = 1
+		vocab_size = 1
+		d_model = 1
+
 		# dVAE
 		# for architecture, see appendix p.17 of https://arxiv.org/pdf/2205.14065.pdf
 		dvae = modules_steve.dVAE(
@@ -100,8 +114,18 @@ def build_model(args):
 				Conv2dBlock(64, 64 * 2 * 2, 1, 1, 0),
 				nn.PixelShuffle(2),
 				conv2d(64, 3, 1, 1, 0)))
+		# Positional Embedding
 		
+		# Slot Attention
 		
+		# Dictionary
+		dictionary = modules_steve.OneHotDictionary(
+			vocab_size=vocab_size+1,
+			emb_size=d_model)
+
+		# Encoder
+
+		# Decoder
 		
 		
 		
