@@ -317,7 +317,7 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 					segmentations[i_sample].int().cpu().numpy(),
 					pr_seg.int().cpu().numpy(),
 					f"./experiments/{args.group}_{args.exp}/viz_seg/{name}_{i_batch}.png",
-					trunk=3, send_to_wandb=True if args.wandb else False)
+					trunk=10, send_to_wandb=True if args.wandb else False)
 	final_loss = loss_value
 	final_ari = ari_running['total'] / ari_running['count']
 	final_ari_nobg = ari_nobg_running['total'] / ari_nobg_running['count']
