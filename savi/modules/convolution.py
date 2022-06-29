@@ -103,7 +103,7 @@ class CNN(nn.Module):
             self.cnn_layers.add_module(name, module)
 
             # init conv layer weights.
-            nn.init.xavier_normal_(module.weight)
+            nn.init.xavier_uniform_(module.weight)
 
             ### Normalization Layer.
             if self.norm_type:
@@ -119,7 +119,7 @@ class CNN(nn.Module):
         ## Final Dense Layer
         if self.output_size:
             self.project_to_output = nn.Linear(features[-1], self.output_size, bias=True)
-            nn.init.xavier_normal_(self.project_to_output.weight)
+            nn.init.xavier_uniform_(self.project_to_output.weight)
 
     def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
         if channels_last:
