@@ -225,6 +225,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 			print('done training')
 			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
 			print('exiting')
+			if args.wandb:
+				wandb.alert(
+					title="End of Run",
+					text=f"Run {args.group}_{args.exp} ended after {datetime.now()-start_time} time")
 			sys.exit(0)
 	
 	return global_step, loss
