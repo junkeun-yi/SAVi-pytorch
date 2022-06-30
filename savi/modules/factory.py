@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from savi.lib.utils import lecun_normal_, lecun_uniform_
+from savi.lib.utils import init_param
 
 import savi.modules as modules
 import savi.modules.misc as misc
@@ -86,8 +86,15 @@ def build_model(args):
 	else:
 		raise NotImplementedError
 	for name, param in model.named_parameters():
+		if 'weight' in name:
+			if param.ndim < 2: # layernorms, probably
+				continue
+			if 'hh' in name: # gru orthogonal
+				nn.init.orthogonal_(param)
+			else:
+				init_param(param, args.init_weight)
 		if 'bias' in name:
-			nn.init.zeros_(param)
+			init_param(param, args.init_bias)
 	return model
 
 

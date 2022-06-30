@@ -96,6 +96,20 @@ def lecun_normal_(tensor, gain=1.):
     std = gain * math.sqrt(1.0 / float(fan_in))
     return nn.init._no_grad_normal_(tensor, 0., std)
 
+init_fn = {
+    'xavier_uniform': nn.init.xavier_uniform_,
+    'xavier_normal': nn.init.xavier_normal_,
+    'kaiming_uniform': nn.init.kaiming_uniform_,
+    'kaiming_normal': nn.init.kaiming_normal_,
+    'lecun_uniform': lecun_uniform_,
+    'lecun_normal': lecun_normal_,
+    'ones': lambda x, _: nn.init.ones_,
+    'zeros': lambda x, _: nn.init.zeros_,
+    'default': lambda x, _: x}
+def init_param(tensor, name, gain=1.):
+    assert name in init_fn.keys(), "not a valid init method"
+    return init_fn[name](tensor, gain)
+
 def spatial_broadcast(x: torch.Tensor, resolution: Sequence[int]) -> Array:
     """Broadcast flat inputs to a 2D grid of a given resolution."""
     x = x[:, None, None, :]
