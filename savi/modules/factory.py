@@ -39,7 +39,7 @@ def build_model(args):
 			slot_size=slot_size,
 			num_iterations=1)
 		# Predictor
-		predictor = modules.TransformerBlockOld(
+		predictor = modules.TransformerBlock(
 			embed_dim=slot_size,
 			num_heads=4,
 			qkv_size=128,
