@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from savi.lib.utils import init_param
+from savi.lib.utils import init_fn
 
 import savi.modules as modules
 import savi.modules.misc as misc
@@ -56,8 +56,8 @@ def build_model(args):
 		# Decoder
 		readout_modules = nn.ModuleList([
 			nn.Linear(64, out_features) for out_features in args.targets.values()])
-		for module in readout_modules.children():
-			nn.init.xavier_uniform_(module.weight)
+		# for module in readout_modules.children():
+			# nn.init.xavier_uniform_(module.weight)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
 			backbone=modules.CNN(
@@ -90,11 +90,12 @@ def build_model(args):
 			if param.ndim < 2: # layernorms, probably
 				continue
 			if 'hh' in name: # gru orthogonal
-				nn.init.orthogonal_(param)
+				# nn.init.orthogonal_(param)
+				pass
 			else:
-				init_param(param, args.init_weight)
+				init_fn[args.init_weight](param, 1)
 		if 'bias' in name:
-			init_param(param, args.init_bias)
+			init_fn[args.init_bias](param, 1)
 	return model
 
 
