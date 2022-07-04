@@ -21,3 +21,5 @@ python -m savi.main --model_type flow --slice_decode_inputs --group flow_movi_a_
 python -m savi.main --group savi_movi_a_myattn_loss --gpu 2,3,4,5,6,7,8,9 --seed 21 --exp 21 --wandb
 
 python -m savi.main --tfds_name movi_c/128x128:1.0.0 --group savi_movi_c_normal_default --gpu --exp 21 --seed 21 --wandb
+
+python -m savi.main --group savi_movi_a_test --wandb --seed 11 --exp 11_xavuni,zeros_ --gpu
