@@ -13,7 +13,7 @@ import savi.lib.metrics as metrics
 import savi.lib.metrics_jax as metrics_jax
 import savi.modules.evaluator as evaluator
 from savi.lib import utils
-from savi.lib.utils import lecun_uniform_, lecun_normal_
+from savi.lib.utils import init_fn
 
 DType = Any
 Array = torch.Tensor
@@ -80,7 +80,8 @@ class MLP(nn.Module):
 				 activation_fn: nn.Module = nn.ReLU,
 				 layernorm: Optional[str] = None,
 				 activate_output: bool = False,
-				 residual: bool = False
+				 residual: bool = False,
+				 weight_init = None
 				):
 		super().__init__()
 
@@ -92,6 +93,7 @@ class MLP(nn.Module):
 		self.layernorm = layernorm
 		self.activate_output = activate_output
 		self.residual = residual
+		self.weight_init = weight_init
 
 		# submodules
 		## layernorm
@@ -109,9 +111,11 @@ class MLP(nn.Module):
 		self.model.add_module(f"dense_mlp_{self.num_hidden_layers}", nn.Linear(self.hidden_size, self.output_size))
 		if self.activate_output:
 			self.model.add_module(f"dense_mlp_{self.num_hidden_layers}_act", self.activation_fn())
-		# for name, module in self.model.named_children():
-		# 	if 'act' not in name:
-		# 		nn.init.xavier_uniform_(module.weight)
+		for name, module in self.model.named_children():
+			if 'act' not in name:
+				# nn.init.xavier_uniform_(module.weight)
+				init_fn[weight_init['linear_w']](module.weight)
+				init_fn[weight_init['linear_b']](module.bias)
 
 	def forward(self, inputs: Array, train: bool = False) -> Array:
 		del train # Unused
@@ -193,7 +197,8 @@ class PositionEmbedding(nn.Module):
 				 gaussian_sigma: float = 1.0,
 				 pos_transform: nn.Module = nn.Identity(),
 				 output_transform: nn.Module = nn.Identity(),
-				 trainable_pos_embedding: bool = False
+				 trainable_pos_embedding: bool = False,
+				 weight_init = None
 				):
 		super().__init__()
 
@@ -205,6 +210,7 @@ class PositionEmbedding(nn.Module):
 		self.pos_transform = pos_transform
 		self.output_transform = output_transform
 		self.trainable_pos_embedding = trainable_pos_embedding
+		self.weight_init = weight_init
 
 		# submodules defined in module.
 		self.pos_embedding = nn.Parameter(self._make_pos_embedding_tensor(input_shape),
@@ -212,6 +218,8 @@ class PositionEmbedding(nn.Module):
 		if self.update_type == "project_add":
 			self.project_add_dense = nn.Linear(self.pos_embedding.shape[-1], input_shape[-1])
 			# nn.init.xavier_uniform_(self.project_add_dense.weight)
+			init_fn[weight_init['linear_w']](self.project_add_dense.weight)
+			init_fn[weight_init['linear_b']](self.project_add_dense.bias)
 
 
 	# TODO: validate

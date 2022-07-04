@@ -12,7 +12,7 @@ import numpy as np
 import torchvision.transforms as transforms
 import math
 
-from savi.lib.utils import lecun_normal_, lecun_uniform_
+from savi.lib.utils import init_fn
 
 Shape = Tuple[int]
 
@@ -37,7 +37,8 @@ class CNN(nn.Module):
                  activation_fn: Callable[[Array], Array] = nn.ReLU,
                  norm_type: Optional[str] = None,
                  axis_name: Optional[str] = None, # Over which axis to aggregate batch stats.
-                 output_size: Optional[int] = None
+                 output_size: Optional[int] = None,
+                 weight_init = None
                 ):
         super().__init__()
 
@@ -51,6 +52,7 @@ class CNN(nn.Module):
         self.norm_type = norm_type
         self.axis_name = axis_name
         self.output_size = output_size
+        self.weight_init = weight_init
 
         # submodules
         num_layers = len(features) - 1 # account for input features (channels)
@@ -104,6 +106,9 @@ class CNN(nn.Module):
 
             # init conv layer weights.
             # nn.init.xavier_uniform_(module.weight)
+            init_fn[weight_init['conv_w']](module.weight)
+            if not norm_type:
+                init_fn[weight_init['conv_b']](module.bias)
 
             ### Normalization Layer.
             if self.norm_type:
@@ -120,6 +125,8 @@ class CNN(nn.Module):
         if self.output_size:
             self.project_to_output = nn.Linear(features[-1], self.output_size, bias=True)
             # nn.init.xavier_uniform_(self.project_to_output.weight)
+            init_fn[weight_init['linear_w']](self.project_to_output.weight)
+            init_fn[weight_init['linear_b']](self.project_to_output.bias)
 
     def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
         if channels_last:

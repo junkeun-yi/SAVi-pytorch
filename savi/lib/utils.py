@@ -103,12 +103,13 @@ init_fn = {
     'kaiming_normal': nn.init.kaiming_normal_,
     'lecun_uniform': lecun_uniform_,
     'lecun_normal': lecun_normal_,
-    'ones': lambda x, _: nn.init.ones_,
-    'zeros': lambda x, _: nn.init.zeros_,
-    'default': lambda x, _: x}
-def init_param(tensor, name, gain=1.):
+    'ones': nn.init.ones_,
+    'zeros': nn.init.zeros_,
+    'default': lambda x: x}
+def init_param(name, gain=1.):
     assert name in init_fn.keys(), "not a valid init method"
-    return init_fn[name](tensor, gain)
+    # return init_fn[name](tensor, gain)
+    return functools.partial(init_fn[name], gain=gain)
 
 def spatial_broadcast(x: torch.Tensor, resolution: Sequence[int]) -> Array:
     """Broadcast flat inputs to a 2D grid of a given resolution."""

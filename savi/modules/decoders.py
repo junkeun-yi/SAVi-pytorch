@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from savi.lib import utils
-from savi.lib.utils import lecun_normal_
+from savi.lib.utils import init_fn
 
 Shape = Tuple[int]
 
@@ -32,7 +32,8 @@ class SpatialBroadcastDecoder(nn.Module):
 				 resolution: Sequence[int],
 				 backbone: nn.Module,
 				 pos_emb: nn.Module,
-				 target_readout: nn.Module = None
+				 target_readout: nn.Module = None,
+				 weight_init = None
 				):
 		super().__init__()
 
@@ -40,10 +41,13 @@ class SpatialBroadcastDecoder(nn.Module):
 		self.backbone = backbone
 		self.pos_emb = pos_emb
 		self.target_readout = target_readout
+		self.weight_init = weight_init
 
 		# submodules
 		self.mask_pred = nn.Linear(self.backbone.features[-1], 1)
 		# nn.init.xavier_uniform_(self.mask_pred.weight)
+		init_fn[weight_init['linear_w']](self.mask_pred.weight)
+		init_fn[weight_init['linear_b']](self.mask_pred.bias)
 
 	def forward(self, slots: Array) -> Array:
 

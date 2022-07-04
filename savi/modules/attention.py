@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from savi.modules import misc
-from savi.lib.utils import lecun_normal_, lecun_uniform_
+from savi.lib.utils import init_param, init_fn
 
 Shape = Tuple[int]
 
@@ -35,7 +35,8 @@ class SlotAttention(nn.Module):
                  num_iterations: int = 1,
                  mlp_size: Optional[int] = None,
                  epsilon: float = 1e-8,
-                 num_heads: int = 1
+                 num_heads: int = 1,
+                 weight_init: str = 'xavier_uniform'
                 ):
         super().__init__()
 
@@ -47,6 +48,7 @@ class SlotAttention(nn.Module):
         self.mlp_size = mlp_size
         self.epsilon = epsilon
         self.num_heads = num_heads
+        self.weight_init = weight_init
 
         # shared modules
         self.w_q = nn.Parameter(torch.Tensor(num_heads, slot_size, qkv_size))
@@ -55,22 +57,30 @@ class SlotAttention(nn.Module):
         # nn.init.xavier_uniform_(self.w_q)
         # nn.init.xavier_uniform_(self.w_k)
         # nn.init.xavier_uniform_(self.w_v)
+        init_fn[weight_init['param']](self.w_q)
+        init_fn[weight_init['param']](self.w_k)
+        init_fn[weight_init['param']](self.w_v)
 
         self.layernorm_input = nn.LayerNorm(input_size)
         self.layernorm_q = nn.LayerNorm(qkv_size)
 
         self.inverted_attention = InvertedDotProductAttention(
             input_size=qkv_size, output_size=slot_size,
-            num_heads=self.num_heads, norm_type="mean")
+            num_heads=self.num_heads, norm_type="mean",
+            weight_init=weight_init)
 
         self.gru = nn.GRUCell(slot_size, slot_size)
         # nn.init.xavier_uniform_(self.gru.weight_ih)
-        # nn.init.orthogonal_(self.gru.weight_hh)
+        init_fn[weight_init['param']](self.gru.weight_ih)
+        nn.init.orthogonal_(self.gru.weight_hh)
+        init_fn[weight_init['linear_b']](self.gru.bias_ih)
+        init_fn[weight_init['linear_b']](self.gru.bias_hh)
 
         if self.mlp_size is not None:
             self.mlp = misc.MLP(
                 input_size=slot_size, hidden_size=self.mlp_size,
-                output_size=slot_size, layernorm="pre", residual=True)
+                output_size=slot_size, layernorm="pre", residual=True,
+                weight_init=weight_init)
 
     def forward(self, slots: Array, inputs: Array,
                 padding_mask: Optional[Array] = None) -> Array:
@@ -131,6 +141,7 @@ class InvertedDotProductAttention(nn.Module):
                  # multi_head: bool = False, # FIXME: can infer from num_heads.
                  epsilon: float = 1e-8,
                  dtype: DType = torch.float32,
+                 weight_init = None
                  # precision # not used
                 ):
         super().__init__()
@@ -141,6 +152,7 @@ class InvertedDotProductAttention(nn.Module):
         self.multi_head = True if num_heads > 1 else False
         self.epsilon = epsilon
         self.dtype = dtype
+        self.weight_init = weight_init
 
         # submodules
         self.attn_fn = GeneralizedDotProductAttention(
@@ -151,6 +163,7 @@ class InvertedDotProductAttention(nn.Module):
         if self.multi_head:
             self.w_o = nn.Parameter(torch.Tensor(num_heads, input_size, output_size))
             # nn.init.xavier_uniform_(self.w_o)
+            init_fn[weight_init['param']](self.w_o)
         if self.norm_type == "layernorm":
             self.layernorm = nn.LayerNorm(output_size)
 
@@ -402,7 +415,8 @@ class TransformerBlock(nn.Module):
                  qkv_size: int,
                  mlp_size: int,
                  num_heads: int = 1,
-                 pre_norm: bool = False
+                 pre_norm: bool = False,
+                 weight_init = None
                 ):
         super().__init__()
 
@@ -411,6 +425,7 @@ class TransformerBlock(nn.Module):
         self.mlp_size = mlp_size
         self.num_heads = num_heads
         self.pre_norm = pre_norm
+        self.weight_init = weight_init
 
         assert num_heads >= 1
         assert embed_dim % num_heads == 0, "embed dim must be divisible by num_heads"
@@ -419,9 +434,13 @@ class TransformerBlock(nn.Module):
         ## weights
         self.w_qkv = nn.Linear(embed_dim, qkv_size*3)
         # nn.init.xavier_uniform_(self.w_qkv.weight)
+        init_fn[weight_init['linear_w']](self.w_qkv.weight)
+        init_fn[weight_init['linear_b']](self.w_qkv.bias)
         if self.num_heads > 1:
             self.w_o = nn.Linear(qkv_size, embed_dim)
             # nn.init.xavier_uniform_(self.w_o.weight)
+            init_fn[weight_init['linear_w']](self.w_o.weight)
+            init_fn[weight_init['linear_b']](self.w_o.bias)
             self.multi_head = True
         else:
             self.multi_head = False
@@ -430,7 +449,7 @@ class TransformerBlock(nn.Module):
         ## mlps
         self.mlp = misc.MLP(
             input_size=embed_dim, hidden_size=mlp_size, 
-            output_size=embed_dim)
+            output_size=embed_dim, weight_init=weight_init)
         ## layernorms
         self.layernorm_query = nn.LayerNorm(embed_dim)
         self.layernorm_mlp = nn.LayerNorm(embed_dim)
