@@ -93,9 +93,9 @@ def build_model(args):
 				# nn.init.orthogonal_(param)
 				pass
 			else:
-				init_fn[args.init_weight](param)
+				init_fn[args.init_weight](param, 1)
 		if 'bias' in name:
-			init_fn[args.init_bias](param)
+			init_fn[args.init_bias](param, 1)
 	return model
 
 
