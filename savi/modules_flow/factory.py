@@ -126,7 +126,7 @@ def build_model(args):
 				strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
 				padding=[2, 2, 2, "same"],
 				transpose_double=True,
-				layer_transpose=[True, True, True, False]),
+				layer_transpose=[True, True, True, True]),
 		pos_emb=modules.PositionEmbedding(
 			input_shape=(-1, 8, 8, slot_size),
 			embedding_type="linear",

@@ -323,6 +323,7 @@ class ARI(nn.Module):
 	def forward(self, model_outputs, batch, args):
 		video, boxes, segmentations, flow, padding_mask, mask = batch
 
+		# TODO: make sure the jax code is discarding first frame
 		# discard first frame as had conditional info.
 		pr_seg = model_outputs[0][:, 1:].squeeze(-1).int().cpu().numpy()
 		# pr_seg = model_outputs["outputs"]["segmentations"][:, 1:].squeeze(-1).int().cpu().numpy()

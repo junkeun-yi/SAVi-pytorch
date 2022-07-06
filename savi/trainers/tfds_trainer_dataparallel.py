@@ -48,6 +48,7 @@ def get_args():
 	adrg('--seed', 42, int)
 	adrg('--epochs', 50, int)
 	adrg('--num_train_steps', 100000, int)
+	adrg('--batch_size', 64, int, help='Batch size')
 	parser.add_argument('--gpu', default='1', type=str, help='GPU id to use.')
 	parser.add_argument('--slice_decode_inputs', action='store_true', help="decode in slices.")
 	
@@ -76,14 +77,13 @@ def get_args():
 	# Dataset
 	adrg('--tfds_name', "movi_a/128x128:1.0.0", help="Dataset for training/eval")
 	adrg('--data_dir', "/home/junkeun-yi/current/datasets/kubric/")
-	adrg('--batch_size', 64, int, help='Batch size')
 	# adrg('--shuffle_buffer_size', 64, help="should be batch_size")
 
 	# Model
 	adrg('--max_instances', 10, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
 	adrg('--model_size', 'small', help="How to prepare data and model architecture.")
 	adrg('--model_type', 'savi', help="model type")
-	parser.add_argument('--init_weight', default='xavier_uniform', help='weight init')
+	parser.add_argument('--init_weight', default='lecun_normal', help='weight init')
 	parser.add_argument('--init_bias', default='zeros', help='bias init')
 
 	# Evaluation
@@ -124,7 +124,7 @@ def get_args():
 		for target in args.targets}
 
 	# Preprocessing
-	if args.model_size =="small":
+	if args.model_size == "small":
 		args.preproc_train = [
 			"video_from_tfds",
 			f"sparse_to_dense_annotation(max_instances={args.max_instances})",
@@ -137,6 +137,21 @@ def get_args():
 			f"sparse_to_dense_annotation(max_instances={args.max_instances})",
 			"temporal_crop_or_pad(length=24)",
 			"resize_small(64)",
+			"flow_to_rgb()"  # NOTE: This only uses the first two flow dimensions.
+		]
+	elif args.model_size == "medium":
+		args.preproc_train = [
+			"video_from_tfds",
+			f"sparse_to_dense_annotation(max_instances={args.max_instances})",
+			"temporal_random_strided_window(length=6)",
+			"resize_small(128)",
+			"flow_to_rgb()"  # NOTE: This only uses the first two flow dimensions.
+		]
+		args.preproc_eval = [
+			"video_from_tfds",
+			f"sparse_to_dense_annotation(max_instances={args.max_instances})",
+			"temporal_crop_or_pad(length=24)",
+			"resize_small(128)",
 			"flow_to_rgb()"  # NOTE: This only uses the first two flow dimensions.
 		]
 	
@@ -297,7 +312,9 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 					B, T, H, W, _ = video.shape
 					# attn = outputs['attention'][0].squeeze(1)
 					attn = outputs[2][i_sample].squeeze(1)
-					attn = attn.reshape(shape=(attn.shape[0], args.num_slots, *video.shape[-3:-1]))
+					attn = attn.reshape(shape=(attn.shape[0], args.num_slots, int(attn.shape[-1] ** (1/2)), int(attn.shape[-1] ** (1/2))))
+					if attn.shape[-2:] != video.shape[-3:-1]:
+						attn = F.interpolate(attn, size=video.shape[-3:-1], mode='bilinear', align_corners=True).view(attn.shape[0], args.num_slots, *video.shape[-3:-1])
 					# pr_flow = outputs['outputs']['flow'][0]
 					pr_flow = outputs[1][i_sample]
 					# pr_seg = outputs['outputs']['segmentations'][0].squeeze(-1)
