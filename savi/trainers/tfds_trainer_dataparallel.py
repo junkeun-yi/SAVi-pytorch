@@ -399,6 +399,7 @@ def run(args):
 
 	# print parameter overview # TODO: log this
 	print(misc.parameter_overview(model))
+	print(model)
 
 	# build optimizer
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
