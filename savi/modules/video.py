@@ -182,10 +182,10 @@ class SAVi(nn.Module):
                 outputs_pred[key] = value.reshape(B, T, *value.shape[1:])
 
         return {
-            "states": corrected_slots,
+            # "states": corrected_slots,
             "states_pred": predicted_slots,
             "outputs": outputs,
-            "outputs_pred": outputs_pred,
+            # "outputs_pred": outputs_pred,
             "attention": attn
         }
 

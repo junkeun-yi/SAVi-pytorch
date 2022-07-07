@@ -209,6 +209,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		itr_loss = criterion(outputs, batch)
 		if loss == None:
 			loss = itr_loss
+		del outputs
+		del batch
 
 		grad_accum += 1
 		if grad_accum != args.accum_iter:
