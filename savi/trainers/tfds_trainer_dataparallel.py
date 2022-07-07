@@ -49,6 +49,7 @@ def get_args():
 	adrg('--epochs', 50, int)
 	adrg('--num_train_steps', 100000, int)
 	adrg('--batch_size', 64, int, help='Batch size')
+	parser.add_argument('--accum_iter', default=1, type=int, help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)")
 	parser.add_argument('--gpu', default='1', type=str, help='GPU id to use.')
 	parser.add_argument('--slice_decode_inputs', action='store_true', help="decode in slices.")
 	
@@ -190,6 +191,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 		scheduler = None
 
 	loss = None
+	grad_accum = 0
 	for data_iter_step, (video, boxes, segmentations, flow, padding_mask, mask) in enumerate(data_loader):
 		# need to squeeze because of weird dataset wrapping ...
 		video = video.squeeze(0).to(device, non_blocking=True) # [64, 6, 64, 64, 3]
@@ -204,56 +206,71 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 		outputs = model(video=video, conditioning=conditioning, 
 			padding_mask=padding_mask)
-		loss = criterion(outputs, batch)
-		loss = loss.mean() # sum over elements, mean over batch.
+		itr_loss = criterion(outputs, batch)
+		if loss == None:
+			loss = itr_loss
 
-		loss_value = loss.item()
+		grad_accum += 1
+		if grad_accum != args.accum_iter:
+			# accumulating gradients to reach effective batch size.
+			# effective batch size is batch_size * accum_iter
 
-		print(f"step: {global_step+1} / {args.num_train_steps}, loss: {loss_value}, clock: {datetime.now()-start_time}", end='\r')
+			# since loss will be [loss(item) for item in batch], we can
+			# update the loss by extending the losses (i think). need to check
+			loss = torch.cat([loss, itr_loss], dim=0)
+		else:
+			loss = loss.mean() # sum over elements, mean over batch.
 
-		if not math.isfinite(loss_value):
-			print("Loss is {}, stopping training".format(loss_value))
-			sys.exit(1)
-		
-		optimizer.zero_grad()
-		
-		loss.backward()
-		# clip grad norm
-		# TODO: fix grad norm clipping, as it's making the loss NaN
-		if max_norm is not None:
-			torch.nn.utils.clip_grad_norm(model.parameters(), max_norm)
-		optimizer.step()
-		if scheduler is not None:
-			scheduler.step()
+			loss_value = loss.item()
 
-		if args.wandb:
-			wandb.log({'train/loss': loss_value})
-			wandb.log({'train/lr': optimizer.param_groups[0]['lr']})
+			print(f"step: {global_step+1} / {args.num_train_steps}, loss: {loss_value}, clock: {datetime.now()-start_time}", end='\r')
 
-		# global stepper.
-		global_step += 1
-		# if global_step % args.log_loss_every_step == 0:
-		# 	# TODO: log the loss (with tensorboard / csv)
-		# 	if args.wandb:
-		# 		wandb.log({'train/loss': loss_value})
-		# 	print()
-		# 	print()
-		if global_step % args.eval_every_steps == 0:
-			print()
-			evaluate(val_loader, model, criterion, evaluator, device, args, global_step)
-		if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
-			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
-		# SAVi doesn't train on epochs, just on steps.
-		if global_step >= args.num_train_steps:
-			# save before exit
-			print('done training')
-			misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
-			print('exiting')
-			# if args.wandb:
-			# 	wandb.alert(
-			# 		title="End of Run",
-			# 		text=f"Run {args.group}_{args.exp} ended after {datetime.now()-start_time} time")
-			sys.exit(0)
+			if not math.isfinite(loss_value):
+				print("Loss is {}, stopping training".format(loss_value))
+				sys.exit(1)
+
+			optimizer.zero_grad()
+
+			loss.backward()
+			# clip grad norm
+			# TODO: fix grad norm clipping, as it's making the loss NaN
+			if max_norm is not None:
+				torch.nn.utils.clip_grad_norm(model.parameters(), max_norm)
+			optimizer.step()
+			if scheduler is not None:
+				scheduler.step()
+
+			if args.wandb:
+				wandb.log({'train/loss': loss_value})
+				wandb.log({'train/lr': optimizer.param_groups[0]['lr']})
+
+			# global stepper.
+			global_step += 1
+			# if global_step % args.log_loss_every_step == 0:
+			# 	# TODO: log the loss (with tensorboard / csv)
+			# 	if args.wandb:
+			# 		wandb.log({'train/loss': loss_value})
+			# 	print()
+			# 	print()
+			if global_step % args.eval_every_steps == 0:
+				print()
+				evaluate(val_loader, model, criterion, evaluator, device, args, global_step)
+			if not args.no_snap and global_step % args.checkpoint_every_steps == 0:
+				misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
+			# SAVi doesn't train on epochs, just on steps.
+			if global_step >= args.num_train_steps:
+				# save before exit
+				print('done training')
+				misc.save_snapshot(args, model.module, optimizer, global_step, f'./experiments/{args.group}_{args.exp}/snapshots/{global_step}.pt')
+				print('exiting')
+				# if args.wandb:
+				# 	wandb.alert(
+				# 		title="End of Run",
+				# 		text=f"Run {args.group}_{args.exp} ended after {datetime.now()-start_time} time")
+				sys.exit(0)
+
+			grad_accum = 0
+			loss = None
 	
 	return global_step, loss
 
@@ -411,6 +428,7 @@ def run(args):
 	# print("Model = %s" % str(model_without_ddp))
 	print('number of params (M): %.2f' % (n_parameters / 1.e6))
 	print("lr: %.2e" % args.lr)
+	print(f"effective batch size: {args.batch_size * args.accum_iter}")
 
 	# Loss
 	print("criterion = %s" % str(criterion))
