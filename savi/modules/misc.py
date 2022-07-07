@@ -98,9 +98,9 @@ class MLP(nn.Module):
 		# submodules
 		## layernorm
 		if self.layernorm == "pre":
-			self.layernorm_module = nn.LayerNorm(input_size)
+			self.layernorm_module = nn.LayerNorm(input_size, eps=1e-6)
 		elif self.layernorm == "post":
-			self.layernorm_module = nn.LayerNorm(output_size)
+			self.layernorm_module = nn.LayerNorm(output_size, eps=1e-6)
 		## mlp
 		self.model = nn.ModuleList()
 		self.model.add_module("dense_mlp_0", nn.Linear(self.input_size, self.hidden_size))

@@ -1,6 +1,6 @@
 """Attention module library."""
 
-# FIXME
+# TODO: num_heads means to divide qkv dim by number of heads, not have n heads each of dim qkv.
 
 import functools
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple, Union
@@ -61,8 +61,8 @@ class SlotAttention(nn.Module):
         init_fn[weight_init['param']](self.w_k)
         init_fn[weight_init['param']](self.w_v)
 
-        self.layernorm_input = nn.LayerNorm(input_size)
-        self.layernorm_q = nn.LayerNorm(qkv_size)
+        self.layernorm_input = nn.LayerNorm(input_size, eps=1e-6)
+        self.layernorm_q = nn.LayerNorm(qkv_size, eps=1e-6)
 
         self.inverted_attention = InvertedDotProductAttention(
             input_size=qkv_size, output_size=slot_size,
@@ -165,7 +165,7 @@ class InvertedDotProductAttention(nn.Module):
             # nn.init.xavier_uniform_(self.w_o)
             init_fn[weight_init['param']](self.w_o)
         if self.norm_type == "layernorm":
-            self.layernorm = nn.LayerNorm(output_size)
+            self.layernorm = nn.LayerNorm(output_size, eps=1e-6)
 
     def forward(self, query: Array, key: Array, value: Array,
                 train: bool = False) -> Array:
@@ -355,9 +355,9 @@ class TransformerBlockOld(nn.Module):
             input_size=embed_dim, hidden_size=mlp_size, 
             output_size=embed_dim)
         ## layernorms
-        self.layernorm_query = nn.LayerNorm(embed_dim)
-        self.layernorm_inputs = nn.LayerNorm(embed_dim) if cross_attn else None
-        self.layernorm_mlp = nn.LayerNorm(embed_dim)
+        self.layernorm_query = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.layernorm_inputs = nn.LayerNorm(embed_dim, eps=1e-6) if cross_attn else None
+        self.layernorm_mlp = nn.LayerNorm(embed_dim, eps=1e-6)
 
     def forward(self, queries: Array, inputs: Optional[Array] = None,
                 padding_mask: Optional[Array] = None,
@@ -451,8 +451,8 @@ class TransformerBlock(nn.Module):
             input_size=embed_dim, hidden_size=mlp_size, 
             output_size=embed_dim, weight_init=weight_init)
         ## layernorms
-        self.layernorm_query = nn.LayerNorm(embed_dim)
-        self.layernorm_mlp = nn.LayerNorm(embed_dim)
+        self.layernorm_query = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.layernorm_mlp = nn.LayerNorm(embed_dim, eps=1e-6)
 
     def forward(self, inputs: Array) -> Array:
         assert inputs.ndim == 3

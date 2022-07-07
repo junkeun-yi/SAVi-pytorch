@@ -83,7 +83,7 @@ class CNN(nn.Module):
         elif self.norm_type == "group":
             norm_module = lambda x: nn.GroupNorm(num_groups=32, num_channels=x)
         elif self.norm_type == "layer":
-            norm_module = functools.partial(nn.LayerNorm)
+            norm_module = functools.partial(nn.LayerNorm, eps=1e-6)
         elif self.norm_type == "instance":
             norm_module = functools.partial(nn.InstanceNorm2d)
 
