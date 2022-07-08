@@ -131,6 +131,79 @@ class MLP(nn.Module):
 			x = self.layernorm_module(x)
 		return x
 
+class myGRUCell(nn.Module):
+	"""GRU cell as nn.Module
+
+	Added because nn.GRUCell doesn't match up with jax's GRUCell...
+	This one is designed to match ! (almost; output returns only once)
+
+	The mathematical definition of the cell is as follows
+
+  	.. math::
+
+		\begin{array}{ll}
+		r = \sigma(W_{ir} x + W_{hr} h + b_{hr}) \\
+		z = \sigma(W_{iz} x + W_{hz} h + b_{hz}) \\
+		n = \tanh(W_{in} x + b_{in} + r * (W_{hn} h + b_{hn})) \\
+		h' = (1 - z) * n + z * h \\
+		\end{array}
+	"""
+
+	def __init__(self,
+				 input_size: int,
+				 hidden_size: int,
+				 gate_fn = torch.sigmoid,
+				 activation_fn = torch.tanh,
+				 weight_init = None
+				):
+		super().__init__()
+
+		self.input_size = input_size
+		self.hidden_size = hidden_size
+		self.gate_fn = gate_fn
+		self.activation_fn = activation_fn
+		self.weight_init = None
+
+		# submodules
+		self.dense_ir = nn.Linear(input_size, hidden_size)
+		self.dense_iz = nn.Linear(input_size, hidden_size)
+		self.dense_in = nn.Linear(input_size, hidden_size)
+		self.dense_hr = nn.Linear(hidden_size, hidden_size, bias=False)
+		self.dense_hz = nn.Linear(hidden_size, hidden_size, bias=False)
+		self.dense_hn = nn.Linear(hidden_size, hidden_size)
+		self.reset_parameters()
+
+	def reset_parameters(self) -> None:
+		recurrent_weight_init = nn.init.orthogonal_
+		if self.weight_init is not None:
+			weight_init = init_fn[self.weight_init['linear_w']]
+			bias_init = init_fn[self.weight_init['linear_b']]
+		else:
+			weight_init = nn.init.xavier_normal_
+			bias_init = nn.init.zeros_
+		# input weights
+		weight_init(self.dense_ir.weight)
+		bias_init(self.dense_ir.bias)
+		weight_init(self.dense_iz.weight)
+		bias_init(self.dense_iz.bias)
+		weight_init(self.dense_in.weight)
+		bias_init(self.dense_in.bias)
+		# hidden weights
+		recurrent_weight_init(self.dense_hr.weight)
+		recurrent_weight_init(self.dense_hz.weight)
+		recurrent_weight_init(self.dense_hn.weight)
+		bias_init(self.dense_hn.bias)
+	
+	def forward(self, inputs, carry):
+		h = carry
+		# input and recurrent layeres are summed so only one needs a bias
+		r = self.gate_fn(self.dense_ir(inputs) + self.dense_hr(h))
+		z = self.gate_fn(self.dense_iz(inputs) + self.dense_hz(h))
+		# add bias because the linear transformations aren't directly summed
+		n = self.activation_fn(self.dense_in(inputs) +
+							   r * self.dense_hn(h))
+		new_h = (1. - z) * n + z * h
+		return new_h
 
 # class GRU(nn.Module):
 #     """GRU cell as nn.Module."""

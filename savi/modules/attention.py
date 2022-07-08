@@ -69,12 +69,11 @@ class SlotAttention(nn.Module):
             num_heads=self.num_heads, norm_type="mean",
             weight_init=weight_init)
 
-        self.gru = nn.GRUCell(slot_size, slot_size)
-        # nn.init.xavier_uniform_(self.gru.weight_ih)
-        init_fn[weight_init['param']](self.gru.weight_ih)
-        nn.init.orthogonal_(self.gru.weight_hh)
-        init_fn[weight_init['linear_b']](self.gru.bias_ih)
-        init_fn[weight_init['linear_b']](self.gru.bias_hh)
+        # self.gru = nn.GRUCell(slot_size, slot_size, bias=False)
+        # init_fn[weight_init['param']](self.gru.weight_ih)
+        # init_fn[weight_init['linear_b']](self.gru.bias_ih)
+        # init_fn[weight_init['linear_b']](self.gru.bias_hh)
+        self.gru = misc.myGRUCell(slot_size, slot_size, weight_init=weight_init)
 
         if self.mlp_size is not None:
             self.mlp = misc.MLP(
@@ -345,7 +344,7 @@ class TransformerBlockOld(nn.Module):
         self.pre_norm = pre_norm
 
         # submodules
-        ## MHA # FIXME: can't do deterministic for torch MHA unlike jax MHA.
+        ## MHA
         self.attn_self = nn.MultiheadAttention(
             embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
         self.attn_cross = nn.MultiheadAttention(
@@ -454,7 +453,7 @@ class TransformerBlock(nn.Module):
         self.layernorm_query = nn.LayerNorm(embed_dim, eps=1e-6)
         self.layernorm_mlp = nn.LayerNorm(embed_dim, eps=1e-6)
 
-    def forward(self, inputs: Array) -> Array:
+    def forward(self, inputs: Array) -> Array: # TODO: add general attention for q, k, v, not just for x = qkv
         assert inputs.ndim == 3
 
         B, L, _ = inputs.shape
