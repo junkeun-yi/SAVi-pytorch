@@ -27,3 +27,5 @@ python -m savi.main --group savi_movi_a_test --wandb --seed 11 --exp 11_xavuni,z
 python -m savi.main --tfds_name movi_c/128x128:1.0.0 --group savi_med_movi_c_test --gpu 8,9 --seed 11 --wandb --exp 11_lecnor,zeros_d1 --init_weight lecun_normal --init_bias zeros
 
 python -m savi.main --tfds_name movi_c/128x128:1.0.0 --group savi_med_movi_c_test --gpu 8,9 --seed 51 --wandb --exp 51_lecnor,zeros_d1 --init_weight lecun_normal --init_bias zeros --model_size medium --batch_size 32 --accum_iter 2
+
+python -m savi.main --group savi_med_movi_a_test --gpu 2,3,4,5,6,7,8,9 --seed 61 --wandb --exp 61_xavnor,zeros_sg --init_weight xavier_normal --init_bias zeros --model_size medium
