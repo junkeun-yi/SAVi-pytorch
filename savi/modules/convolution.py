@@ -154,3 +154,87 @@ class CNN(nn.Module):
             x = self.project_to_output(x)
 
         return x
+
+class CNN2(nn.Module):
+    """New CNN module because above wasn't too flexible in torch."""
+
+    def __init__(self,
+                 conv_modules: nn.ModuleList,
+                 activation_fn: nn.Module = nn.ReLU,
+                 norm_type: Optional[str] = None,
+                 output_size: Optional[str] = None,
+                 weight_init = None
+                ):
+        super().__init__()
+
+        self.conv_modules = conv_modules
+        self.activation = activation_fn
+        self.norm_type = norm_type
+        self.output_size = output_size
+        self.weight_init = weight_init
+        self.features = [c.out_channels for c in conv_modules.children()]
+
+        # submodules
+        num_layers = len(conv_modules)
+
+        if self.norm_type:
+            assert self.norm_type in {"batch", "group", "instance", "layer"}, (
+                f"({self.norm_type}) is not a valid normalization type")
+
+        if self.norm_type == "batch":
+            norm_module = functools.partial(nn.BatchNorm2d, momentum=0.9)
+        elif self.norm_type == "group":
+            norm_module = lambda x: nn.GroupNorm(num_groups=32, num_channels=x)
+        elif self.norm_type == "layer":
+            norm_module = functools.partial(nn.LayerNorm, eps=1e-6)
+        elif self.norm_type == "instance":
+            norm_module = functools.partial(nn.InstanceNorm2d)
+
+        # model
+        ## Convnet Architecture.
+        self.cnn_layers = nn.ModuleList()
+        for i in range(num_layers):
+            ### Conv
+            name = f"conv_{i}"
+            conv = conv_modules[i]
+            init_fn[weight_init['conv_w']](conv.weight)
+            if conv.bias is not None:
+                init_fn[weight_init['conv_b']](conv.bias)
+            self.cnn_layers.add_module(name, conv)
+
+            ### Normalization (if exists)
+            if self.norm_type:
+                self.cnn_layers.add_module(
+                    f"{self.norm_type}_norm_{i}",
+                    norm_module(self.features[i]))
+
+            ### Activation
+            self.cnn_layers.add_module(
+                f"act_{i}",
+                activation_fn())
+
+        ## Final Dense Layer (if exists)
+        if self.output_size:
+            self.project_to_output = nn.Linear(self.features[-1], self.outptu_size, bias=True)
+            init_fn[weight_init['linear_w']](self.project_to_output.weight)
+            init_fn[weight_init['linear_b']](self.project_to_output.bias)
+
+    def forward(self, inputs: Array, channels_last=False) -> Tuple[Dict[str, Array]]:
+        if channels_last:
+            # inputs.shape = (batch_size, height, width, n_channels)
+            inputs = inputs.permute((0, 3, 1, 2))
+            # inputs.shape = (batch_size, n_channels, height, width)
+
+        x = inputs
+        for name, layer in self.cnn_layers.named_children():
+            x = layer(x)
+
+        if channels_last:
+            # x.shape = (batch_size, n_features, h*, w*)
+            x = x.permute((0, 2, 3, 1))
+            # x.shape = (batch_size, h*, w*, n_features)
+
+        if self.output_size:
+            x = self.project_to_output(x)
+
+        return x

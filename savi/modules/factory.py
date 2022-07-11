@@ -17,14 +17,23 @@ def build_model(args):
 		num_slots = args.num_slots
 		weight_init = args.weight_init
 		# Encoder
+		# encoder_backbone = modules.CNN(
+		# 	features=[3, 32, 32, 32, 32],
+		# 	kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
+		# 	strides=[(1, 1), (1, 1), (1, 1), (1, 1)],
+		# 	# padding="same",
+		# 	padding=[(2, 2), (2, 2), (2, 2), (2, 2)],
+		# 	layer_transpose=[False, False, False, False],
+		# 	weight_init=weight_init)
+		encoder_backbone = modules.CNN2(
+			conv_modules=nn.ModuleList([
+				nn.Conv2d(3, 32, (5, 5), (1, 1), (2, 2)),
+				nn.Conv2d(32, 32, (5, 5), (1, 1), (2, 2)),
+				nn.Conv2d(32, 32, (5, 5), (1, 1), (2, 2)),
+				nn.Conv2d(32, 32, (5, 5), (1, 1), (2, 2))]),
+			weight_init=weight_init)
 		encoder = modules.FrameEncoder(
-			backbone=modules.CNN(
-				features=[3, 32, 32, 32, 32],
-				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
-				strides=[(1, 1), (1, 1), (1, 1), (1, 1)],
-				padding="same",
-				layer_transpose=[False, False, False, False],
-				weight_init=weight_init),
+			backbone=encoder_backbone,
 			pos_emb=modules.PositionEmbedding(
 				input_shape=(-1, 64, 64, 32),
 				embedding_type="linear",
@@ -66,16 +75,24 @@ def build_model(args):
 		for module in readout_modules.children():
 			init_fn[weight_init['linear_w']](module.weight)
 			init_fn[weight_init['linear_b']](module.bias)
+		# decoder_backbone = modules.CNN(
+		# 	features=[slot_size, 64, 64, 64, 64],
+		# 	kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
+		# 	strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
+		# 	padding=[2, 2, 2, "same"],
+		# 	transpose_double=True,
+		# 	layer_transpose=[True, True, True, False],
+		# 	weight_init=weight_init)
+		decoder_backbone = modules.CNN2(
+			nn.ModuleList([
+				nn.ConvTranspose2d(slot_size, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1)),
+				nn.ConvTranspose2d(64, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1)),
+				nn.ConvTranspose2d(64, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1)),
+				nn.Conv2d(64, 64, (5, 5), (1, 1), (2,2))]),
+			weight_init=weight_init)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
-			backbone=modules.CNN(
-				features=[slot_size, 64, 64, 64, 64],
-				kernel_size=[(5, 5), (5, 5), (5, 5), (5, 5)],
-				strides=[(2, 2), (2, 2), (2, 2), (1, 1)],
-				padding=[2, 2, 2, "same"],
-				transpose_double=True,
-				layer_transpose=[True, True, True, False],
-				weight_init=weight_init),
+			backbone=decoder_backbone,
 			pos_emb=modules.PositionEmbedding(
 				input_shape=(-1, 8, 8, slot_size),
 				embedding_type="linear",
