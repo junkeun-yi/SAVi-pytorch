@@ -162,7 +162,7 @@ class myGRUCell(nn.Module):
 		self.hidden_size = hidden_size
 		self.gate_fn = gate_fn
 		self.activation_fn = activation_fn
-		self.weight_init = None
+		self.weight_init = weight_init
 
 		# submodules
 		self.dense_ir = nn.Linear(input_size, hidden_size)
