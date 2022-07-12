@@ -181,8 +181,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 	len_data = len(dataset)
 	data_loader = torch.utils.data.DataLoader(dataset, 1, shuffle=False)
 
-	optimizer.zero_grad()
-
 	# TODO: only first epoch has scheduler, and does step-wise scheduling
 	if epoch == 0:
 		# scheduler = None
@@ -231,7 +229,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 				print("Loss is {}, stopping training".format(loss_value))
 				sys.exit(1)
 
-			optimizer.zero_grad()
+			optimizer.zero_grad(set_to_none=True)
 
 			loss.backward()
 			# clip grad norm
