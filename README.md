@@ -4,11 +4,11 @@
 +-----------------------------------------------------------+-----------------+---------+-----------+---------+
 | Name                                                      | Shape           | Size    | Mean      | Std     |
 +-----------------------------------------------------------+-----------------+---------+-----------+---------+
-| encoder.backbone.cnn_layers.conv_0.weight                 | (32, 3, 5, 5)   | 2,400   | -0.000433 | 0.117   |
+| encoder.backbone.cnn_layers.conv_0.weight                 | (32, 3, 5, 5)   | 2,400   | -0.00121  | 0.115   |
 | encoder.backbone.cnn_layers.conv_0.bias                   | (32,)           | 32      | 0.0       | 0.0     |
-| encoder.backbone.cnn_layers.conv_1.weight                 | (32, 32, 5, 5)  | 25,600  | -3.37e-05 | 0.0356  |
+| encoder.backbone.cnn_layers.conv_1.weight                 | (32, 32, 5, 5)  | 25,600  | 1.36e-05  | 0.0354  |
 | encoder.backbone.cnn_layers.conv_1.bias                   | (32,)           | 32      | 0.0       | 0.0     |
-| encoder.backbone.cnn_layers.conv_2.weight                 | (32, 32, 5, 5)  | 25,600  | 7.71e-06  | 0.0354  |
+| encoder.backbone.cnn_layers.conv_2.weight                 | (32, 32, 5, 5)  | 25,600  | 3.66e-05  | 0.0354  |
 | encoder.backbone.cnn_layers.conv_2.bias                   | (32,)           | 32      | 0.0       | 0.0     |
 | encoder.backbone.cnn_layers.conv_3.weight                 | (32, 32, 5, 5)  | 25,600  | 9.38e-05  | 0.0356  |
 | encoder.backbone.cnn_layers.conv_3.bias                   | (32,)           | 32      | 0.0       | 0.0     |
@@ -21,12 +21,12 @@
 | encoder.pos_emb.output_transform.model.dense_mlp_1.bias   | (32,)           | 32      | 0.0       | 0.0     |
 | encoder.pos_emb.project_add_dense.weight                  | (32, 2)         | 64      | -0.057    | 0.663   |
 | encoder.pos_emb.project_add_dense.bias                    | (32,)           | 32      | 0.0       | 0.0     |
-| decoder.backbone.cnn_layers.convtranspose_0.weight        | (128, 64, 5, 5) | 204,800 | -1.23e-05 | 0.025   |
-| decoder.backbone.cnn_layers.convtranspose_0.bias          | (64,)           | 64      | 0.0       | 0.0     |
-| decoder.backbone.cnn_layers.convtranspose_1.weight        | (64, 64, 5, 5)  | 102,400 | -2.18e-05 | 0.0251  |
-| decoder.backbone.cnn_layers.convtranspose_1.bias          | (64,)           | 64      | 0.0       | 0.0     |
-| decoder.backbone.cnn_layers.convtranspose_2.weight        | (64, 64, 5, 5)  | 102,400 | 7.43e-05  | 0.025   |
-| decoder.backbone.cnn_layers.convtranspose_2.bias          | (64,)           | 64      | 0.0       | 0.0     |
+| decoder.backbone.cnn_layers.conv_0.weight                 | (128, 64, 5, 5) | 204,800 | -1.79e-05 | 0.0251  |
+| decoder.backbone.cnn_layers.conv_0.bias                   | (64,)           | 64      | 0.0       | 0.0     |
+| decoder.backbone.cnn_layers.conv_1.weight                 | (64, 64, 5, 5)  | 102,400 | 7.51e-05  | 0.025   |
+| decoder.backbone.cnn_layers.conv_1.bias                   | (64,)           | 64      | 0.0       | 0.0     |
+| decoder.backbone.cnn_layers.conv_2.weight                 | (64, 64, 5, 5)  | 102,400 | 3.74e-05  | 0.0251  |
+| decoder.backbone.cnn_layers.conv_2.bias                   | (64,)           | 64      | 0.0       | 0.0     |
 | decoder.backbone.cnn_layers.conv_3.weight                 | (64, 64, 5, 5)  | 102,400 | -8.94e-05 | 0.025   |
 | decoder.backbone.cnn_layers.conv_3.bias                   | (64,)           | 64      | 0.0       | 0.0     |
 | decoder.pos_emb.pos_embedding                             | (1, 8, 8, 2)    | 128     | 0.0       | 0.657   |
@@ -73,16 +73,16 @@
 Total: 895,268
 SAVi(
   (encoder): FrameEncoder(
-    (backbone): CNN(
+    (backbone): CNN2(
       (cnn_layers): ModuleList(
-        (conv_0): Conv2d(3, 32, kernel_size=(5, 5), stride=(1, 1), padding=same)
-        (activ_0): ReLU()
-        (conv_1): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=same)
-        (activ_1): ReLU()
-        (conv_2): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=same)
-        (activ_2): ReLU()
-        (conv_3): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=same)
-        (activ_3): ReLU()
+        (conv_0): Conv2d(3, 32, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        (act_0): ReLU()
+        (conv_1): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        (act_1): ReLU()
+        (conv_2): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        (act_2): ReLU()
+        (conv_3): Conv2d(32, 32, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        (act_3): ReLU()
       )
     )
     (pos_emb): PositionEmbedding(
@@ -100,16 +100,16 @@ SAVi(
     (output_transform): Identity()
   )
   (decoder): SpatialBroadcastDecoder(
-    (backbone): CNN(
+    (backbone): CNN2(
       (cnn_layers): ModuleList(
-        (convtranspose_0): ConvTranspose2d(128, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
-        (activ_0): ReLU()
-        (convtranspose_1): ConvTranspose2d(64, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
-        (activ_1): ReLU()
-        (convtranspose_2): ConvTranspose2d(64, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
-        (activ_2): ReLU()
-        (conv_3): Conv2d(64, 64, kernel_size=(5, 5), stride=(1, 1), padding=same)
-        (activ_3): ReLU()
+        (conv_0): ConvTranspose2d(128, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+        (act_0): ReLU()
+        (conv_1): ConvTranspose2d(64, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+        (act_1): ReLU()
+        (conv_2): ConvTranspose2d(64, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2), output_padding=(1, 1))
+        (act_2): ReLU()
+        (conv_3): Conv2d(64, 64, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+        (act_3): ReLU()
       )
     )
     (pos_emb): PositionEmbedding(
