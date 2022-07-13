@@ -25,23 +25,23 @@
 | encoder.pos_emb.output_transform.model.dense_mlp_1.bias   | (32,)           | 32      | 0.0       | 0.0    |
 | encoder.pos_emb.project_add_dense.weight                  | (32, 2)         | 64      | -0.057    | 0.663  |
 | encoder.pos_emb.project_add_dense.bias                    | (32,)           | 32      | 0.0       | 0.0    |
-| corrector.dense_q.weight                                  | (128, 128)      | 16,384  | -0.000496 | 0.0883 |
-| corrector.dense_k.weight                                  | (128, 32)       | 4,096   | 0.00301   | 0.179  |
-| corrector.dense_v.weight                                  | (128, 32)       | 4,096   | -0.000467 | 0.177  |
+| corrector.gru.dense_ir.weight                             | (128, 128)      | 16,384  | -0.00144  | 0.0886 |
+| corrector.gru.dense_ir.bias                               | (128,)          | 128     | 0.0       | 0.0    |
+| corrector.gru.dense_iz.weight                             | (128, 128)      | 16,384  | 3.85e-06  | 0.0891 |
+| corrector.gru.dense_iz.bias                               | (128,)          | 128     | 0.0       | 0.0    |
+| corrector.gru.dense_in.weight                             | (128, 128)      | 16,384  | -0.00101  | 0.0876 |
+| corrector.gru.dense_in.bias                               | (128,)          | 128     | 0.0       | 0.0    |
+| corrector.gru.dense_hr.weight                             | (128, 128)      | 16,384  | 0.000347  | 0.0884 |
+| corrector.gru.dense_hz.weight                             | (128, 128)      | 16,384  | 0.000198  | 0.0884 |
+| corrector.gru.dense_hn.weight                             | (128, 128)      | 16,384  | -0.000997 | 0.0884 |
+| corrector.gru.dense_hn.bias                               | (128,)          | 128     | 0.0       | 0.0    |
+| corrector.dense_q.weight                                  | (128, 128)      | 16,384  | -0.000674 | 0.0887 |
+| corrector.dense_k.weight                                  | (128, 32)       | 4,096   | -0.00172  | 0.179  |
+| corrector.dense_v.weight                                  | (128, 32)       | 4,096   | 0.0034    | 0.179  |
 | corrector.layernorm_q.weight                              | (128,)          | 128     | 1.0       | 0.0    |
 | corrector.layernorm_q.bias                                | (128,)          | 128     | 0.0       | 0.0    |
 | corrector.layernorm_input.weight                          | (32,)           | 32      | 1.0       | 0.0    |
 | corrector.layernorm_input.bias                            | (32,)           | 32      | 0.0       | 0.0    |
-| corrector.gru.dense_ir.weight                             | (128, 128)      | 16,384  | -0.000368 | 0.0895 |
-| corrector.gru.dense_ir.bias                               | (128,)          | 128     | 0.0       | 0.0    |
-| corrector.gru.dense_iz.weight                             | (128, 128)      | 16,384  | 0.000106  | 0.0878 |
-| corrector.gru.dense_iz.bias                               | (128,)          | 128     | 0.0       | 0.0    |
-| corrector.gru.dense_in.weight                             | (128, 128)      | 16,384  | -0.00047  | 0.0877 |
-| corrector.gru.dense_in.bias                               | (128,)          | 128     | 0.0       | 0.0    |
-| corrector.gru.dense_hr.weight                             | (128, 128)      | 16,384  | 0.000774  | 0.0884 |
-| corrector.gru.dense_hz.weight                             | (128, 128)      | 16,384  | -0.000512 | 0.0884 |
-| corrector.gru.dense_hn.weight                             | (128, 128)      | 16,384  | 0.000407  | 0.0884 |
-| corrector.gru.dense_hn.bias                               | (128,)          | 128     | 0.0       | 0.0    |
 | decoder.backbone.cnn_layers.conv_0.weight                 | (128, 64, 5, 5) | 204,800 | 2.94e-05  | 0.0251 |
 | decoder.backbone.cnn_layers.conv_0.bias                   | (64,)           | 64      | 0.0       | 0.0    |
 | decoder.backbone.cnn_layers.conv_1.weight                 | (64, 64, 5, 5)  | 102,400 | 4.32e-05  | 0.025  |
@@ -57,18 +57,22 @@
 | decoder.target_readout.readout_modules.0.bias             | (3,)            | 3       | 0.0       | 0.0    |
 | decoder.mask_pred.weight                                  | (1, 64)         | 64      | -0.0126   | 0.114  |
 | decoder.mask_pred.bias                                    | (1,)            | 1       | 0.0       | nan    |
-| predictor.w_qkv.weight                                    | (384, 128)      | 49,152  | -0.000634 | 0.0886 |
-| predictor.w_qkv.bias                                      | (384,)          | 384     | 0.0       | 0.0    |
-| predictor.w_o.weight                                      | (128, 128)      | 16,384  | -0.000541 | 0.0877 |
-| predictor.w_o.bias                                        | (128,)          | 128     | 0.0       | 0.0    |
-| predictor.mlp.model.dense_mlp_0.weight                    | (256, 128)      | 32,768  | 0.000362  | 0.0885 |
+| predictor.mlp.model.dense_mlp_0.weight                    | (256, 128)      | 32,768  | -0.000881 | 0.0889 |
 | predictor.mlp.model.dense_mlp_0.bias                      | (256,)          | 256     | 0.0       | 0.0    |
-| predictor.mlp.model.dense_mlp_1.weight                    | (128, 256)      | 32,768  | -5e-05    | 0.0626 |
+| predictor.mlp.model.dense_mlp_1.weight                    | (128, 256)      | 32,768  | -0.000456 | 0.0624 |
 | predictor.mlp.model.dense_mlp_1.bias                      | (128,)          | 128     | 0.0       | 0.0    |
 | predictor.layernorm_query.weight                          | (128,)          | 128     | 1.0       | 0.0    |
 | predictor.layernorm_query.bias                            | (128,)          | 128     | 0.0       | 0.0    |
 | predictor.layernorm_mlp.weight                            | (128,)          | 128     | 1.0       | 0.0    |
 | predictor.layernorm_mlp.bias                              | (128,)          | 128     | 0.0       | 0.0    |
+| predictor.dense_q.weight                                  | (128, 128)      | 16,384  | -0.00041  | 0.0875 |
+| predictor.dense_q.bias                                    | (128,)          | 128     | 0.0       | 0.0    |
+| predictor.dense_k.weight                                  | (128, 128)      | 16,384  | 0.00023   | 0.089  |
+| predictor.dense_k.bias                                    | (128,)          | 128     | 0.0       | 0.0    |
+| predictor.dense_v.weight                                  | (128, 128)      | 16,384  | 0.00036   | 0.088  |
+| predictor.dense_v.bias                                    | (128,)          | 128     | 0.0       | 0.0    |
+| predictor.dense_o.weight                                  | (128, 128)      | 16,384  | -0.000598 | 0.0878 |
+| predictor.dense_o.bias                                    | (128,)          | 128     | 0.0       | 0.0    |
 +-----------------------------------------------------------+-----------------+---------+-----------+--------+
 Total: 895,268
 SAVi(
@@ -109,14 +113,6 @@ SAVi(
     (output_transform): Identity()
   )
   (corrector): SlotAttention(
-    (dense_q): Linear(in_features=128, out_features=128, bias=False)
-    (dense_k): Linear(in_features=32, out_features=128, bias=False)
-    (dense_v): Linear(in_features=32, out_features=128, bias=False)
-    (layernorm_q): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
-    (layernorm_input): LayerNorm((32,), eps=1e-06, elementwise_affine=True)
-    (inverted_attention): InvertedDotProductAttention(
-      (attn_fn): GeneralizedDotProductAttention()
-    )
     (gru): myGRUCell(
       (dense_ir): Linear(in_features=128, out_features=128, bias=True)
       (dense_iz): Linear(in_features=128, out_features=128, bias=True)
@@ -124,6 +120,14 @@ SAVi(
       (dense_hr): Linear(in_features=128, out_features=128, bias=False)
       (dense_hz): Linear(in_features=128, out_features=128, bias=False)
       (dense_hn): Linear(in_features=128, out_features=128, bias=True)
+    )
+    (dense_q): Linear(in_features=128, out_features=128, bias=False)
+    (dense_k): Linear(in_features=32, out_features=128, bias=False)
+    (dense_v): Linear(in_features=32, out_features=128, bias=False)
+    (layernorm_q): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
+    (layernorm_input): LayerNorm((32,), eps=1e-06, elementwise_affine=True)
+    (inverted_attention): InvertedDotProductAttention(
+      (attn_fn): GeneralizedDotProductAttention()
     )
   )
   (decoder): SpatialBroadcastDecoder(
@@ -152,8 +156,6 @@ SAVi(
     (mask_pred): Linear(in_features=64, out_features=1, bias=True)
   )
   (predictor): TransformerBlock(
-    (w_qkv): Linear(in_features=128, out_features=384, bias=True)
-    (w_o): Linear(in_features=128, out_features=128, bias=True)
     (attn): GeneralizedDotProductAttention()
     (mlp): MLP(
       (model): ModuleList(
@@ -164,17 +166,13 @@ SAVi(
     )
     (layernorm_query): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
     (layernorm_mlp): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
+    (dense_q): Linear(in_features=128, out_features=128, bias=True)
+    (dense_k): Linear(in_features=128, out_features=128, bias=True)
+    (dense_v): Linear(in_features=128, out_features=128, bias=True)
+    (dense_o): Linear(in_features=128, out_features=128, bias=True)
   )
   (processor): Processor(
     (corrector): SlotAttention(
-      (dense_q): Linear(in_features=128, out_features=128, bias=False)
-      (dense_k): Linear(in_features=32, out_features=128, bias=False)
-      (dense_v): Linear(in_features=32, out_features=128, bias=False)
-      (layernorm_q): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
-      (layernorm_input): LayerNorm((32,), eps=1e-06, elementwise_affine=True)
-      (inverted_attention): InvertedDotProductAttention(
-        (attn_fn): GeneralizedDotProductAttention()
-      )
       (gru): myGRUCell(
         (dense_ir): Linear(in_features=128, out_features=128, bias=True)
         (dense_iz): Linear(in_features=128, out_features=128, bias=True)
@@ -183,10 +181,16 @@ SAVi(
         (dense_hz): Linear(in_features=128, out_features=128, bias=False)
         (dense_hn): Linear(in_features=128, out_features=128, bias=True)
       )
+      (dense_q): Linear(in_features=128, out_features=128, bias=False)
+      (dense_k): Linear(in_features=32, out_features=128, bias=False)
+      (dense_v): Linear(in_features=32, out_features=128, bias=False)
+      (layernorm_q): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
+      (layernorm_input): LayerNorm((32,), eps=1e-06, elementwise_affine=True)
+      (inverted_attention): InvertedDotProductAttention(
+        (attn_fn): GeneralizedDotProductAttention()
+      )
     )
     (predictor): TransformerBlock(
-      (w_qkv): Linear(in_features=128, out_features=384, bias=True)
-      (w_o): Linear(in_features=128, out_features=128, bias=True)
       (attn): GeneralizedDotProductAttention()
       (mlp): MLP(
         (model): ModuleList(
@@ -197,8 +201,11 @@ SAVi(
       )
       (layernorm_query): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
       (layernorm_mlp): LayerNorm((128,), eps=1e-06, elementwise_affine=True)
+      (dense_q): Linear(in_features=128, out_features=128, bias=True)
+      (dense_k): Linear(in_features=128, out_features=128, bias=True)
+      (dense_v): Linear(in_features=128, out_features=128, bias=True)
+      (dense_o): Linear(in_features=128, out_features=128, bias=True)
     )
   )
 )
-
 ```

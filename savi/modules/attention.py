@@ -415,9 +415,9 @@ class TransformerBlock(nn.Module):
 
     def __init__(self,
                  embed_dim: int, # FIXME: added for submodules
+                 num_heads: int,
                  qkv_size: int,
                  mlp_size: int,
-                 num_heads: int = 1,
                  pre_norm: bool = False,
                  weight_init = None
                 ):
@@ -431,22 +431,10 @@ class TransformerBlock(nn.Module):
         self.weight_init = weight_init
 
         assert num_heads >= 1
-        assert embed_dim % num_heads == 0, "embed dim must be divisible by num_heads"
+        assert qkv_size % num_heads == 0, "embed dim must be divisible by num_heads"
+        self.head_dim = qkv_size // num_heads
 
         # submodules
-        ## weights
-        self.w_qkv = nn.Linear(embed_dim, qkv_size*3)
-        # nn.init.xavier_uniform_(self.w_qkv.weight)
-        init_fn[weight_init['linear_w']](self.w_qkv.weight)
-        init_fn[weight_init['linear_b']](self.w_qkv.bias)
-        if self.num_heads > 1:
-            self.w_o = nn.Linear(qkv_size, embed_dim)
-            # nn.init.xavier_uniform_(self.w_o.weight)
-            init_fn[weight_init['linear_w']](self.w_o.weight)
-            init_fn[weight_init['linear_b']](self.w_o.bias)
-            self.multi_head = True
-        else:
-            self.multi_head = False
         ## MHA #
         self.attn = GeneralizedDotProductAttention()
         ## mlps
@@ -456,6 +444,24 @@ class TransformerBlock(nn.Module):
         ## layernorms
         self.layernorm_query = nn.LayerNorm(embed_dim, eps=1e-6)
         self.layernorm_mlp = nn.LayerNorm(embed_dim, eps=1e-6)
+        ## weights
+        self.dense_q = nn.Linear(embed_dim, qkv_size)
+        self.dense_k = nn.Linear(embed_dim, qkv_size)
+        self.dense_v = nn.Linear(embed_dim, qkv_size)
+        init_fn[weight_init['linear_w']](self.dense_q.weight)
+        init_fn[weight_init['linear_b']](self.dense_q.bias)
+        init_fn[weight_init['linear_w']](self.dense_k.weight)
+        init_fn[weight_init['linear_b']](self.dense_k.bias)
+        init_fn[weight_init['linear_w']](self.dense_v.weight)
+        init_fn[weight_init['linear_b']](self.dense_v.bias)
+        if self.num_heads > 1:
+            self.dense_o = nn.Linear(qkv_size, embed_dim)
+            # nn.init.xavier_uniform_(self.w_o.weight)
+            init_fn[weight_init['linear_w']](self.dense_o.weight)
+            init_fn[weight_init['linear_b']](self.dense_o.bias)
+            self.multi_head = True
+        else:
+            self.multi_head = False
 
     def forward(self, inputs: Array) -> Array: # TODO: add general attention for q, k, v, not just for x = qkv
         assert inputs.ndim == 3
@@ -466,13 +472,12 @@ class TransformerBlock(nn.Module):
         if self.pre_norm:
             # Self-attention.
             x = self.layernorm_query(inputs)
-            qkv = self.w_qkv(x).view(B, L, self.num_heads, head_dim*3)
-            q = qkv[:, :, :, :head_dim]
-            k = qkv[:, :, :, head_dim:-head_dim]
-            v = qkv[:, :, :, -head_dim:]
+            q = self.dense_q(x).view(B, L, self.num_heads, head_dim)
+            k = self.dense_k(x).view(B, L, self.num_heads, head_dim)
+            v = self.dense_v(x).view(B, L, self.num_heads, head_dim)
             x, _ = self.attn(query=q, key=k, value=v)
             if self.multi_head:
-                x = self.w_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
+                x = self.dense_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
             else:
                 x = x.squeeze(-2)
             x = x + inputs
@@ -486,13 +491,12 @@ class TransformerBlock(nn.Module):
         else:
             # Self-attention on queries.
             x = inputs
-            qkv = self.w_qkv(x).view(B, L, self.num_heads, head_dim*3)
-            q = qkv[:, :, :, :head_dim]
-            k = qkv[:, :, :, head_dim:-head_dim]
-            v = qkv[:, :, :, -head_dim:]
+            q = self.dense_q(x).view(B, L, self.num_heads, head_dim)
+            k = self.dense_k(x).view(B, L, self.num_heads, head_dim)
+            v = self.dense_v(x).view(B, L, self.num_heads, head_dim)
             x, _ = self.attn(query=q, key=k, value=v)
             if self.multi_head:
-                x = self.w_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
+                x = self.dense_o(x.reshape(B, L, self.qkv_size)).view(B, L, self.embed_dim)
             else:
                 x = x.squeeze(-2)
             x = x + inputs
