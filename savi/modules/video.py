@@ -78,11 +78,11 @@ class SAVi(nn.Module):
                 ):
         super().__init__()
 
-        self.encoder = encoder
-        self.decoder = decoder
-        self.corrector = corrector
-        self.predictor = predictor
         self.initializer = initializer
+        self.encoder = encoder
+        self.corrector = corrector
+        self.decoder = decoder
+        self.predictor = predictor
         self.decode_corrected = decode_corrected
         self.decode_predicted = decode_predicted
 

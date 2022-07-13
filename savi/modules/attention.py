@@ -1,7 +1,5 @@
 """Attention module library."""
 
-# TODO: num_heads means to divide qkv dim by number of heads, not have n heads each of dim qkv.
-
 import functools
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple, Union
 
@@ -30,8 +28,8 @@ class SlotAttention(nn.Module):
     """
     def __init__(self,
                  input_size: int, # size of encoded inputs. # FIXME: added for submodules.
-                 qkv_size: int, # fixed size, or slot size. # Optional[int] = None,
                  slot_size: int, # fixed size. or same as qkv_size.
+                 qkv_size: int = None, # fixed size, or slot size. # Optional[int] = None,
                  num_iterations: int = 1,
                  mlp_size: Optional[int] = None,
                  epsilon: float = 1e-8,
@@ -41,38 +39,35 @@ class SlotAttention(nn.Module):
         super().__init__()
 
         self.input_size = input_size
-        self.qkv_size = qkv_size
         self.slot_size = slot_size
+        self.qkv_size = qkv_size if qkv_size is not None else slot_size
         self.num_iterations = num_iterations
-        self.qkv_size = qkv_size
         self.mlp_size = mlp_size
         self.epsilon = epsilon
         self.num_heads = num_heads
         self.weight_init = weight_init
+        # other definitions
+        self.head_dim = qkv_size // self.num_heads
 
         # shared modules
-        self.w_q = nn.Parameter(torch.Tensor(num_heads, slot_size, qkv_size))
-        self.w_k = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
-        self.w_v = nn.Parameter(torch.Tensor(num_heads, input_size, qkv_size))
-        # nn.init.xavier_uniform_(self.w_q)
-        # nn.init.xavier_uniform_(self.w_k)
-        # nn.init.xavier_uniform_(self.w_v)
-        init_fn[weight_init['param']](self.w_q)
-        init_fn[weight_init['param']](self.w_k)
-        init_fn[weight_init['param']](self.w_v)
+        self.dense_q = nn.Linear(slot_size, qkv_size, bias=False)
+        self.dense_k = nn.Linear(input_size, qkv_size, bias=False)
+        self.dense_v = nn.Linear(input_size, qkv_size, bias=False)
+        init_fn[weight_init['linear_w']](self.dense_q.weight)
+        init_fn[weight_init['linear_w']](self.dense_k.weight)
+        init_fn[weight_init['linear_w']](self.dense_v.weight)
 
-        self.layernorm_input = nn.LayerNorm(input_size, eps=1e-6)
+        # layernorms
         self.layernorm_q = nn.LayerNorm(qkv_size, eps=1e-6)
+        self.layernorm_input = nn.LayerNorm(input_size, eps=1e-6)
 
+        # attention
         self.inverted_attention = InvertedDotProductAttention(
             input_size=qkv_size, output_size=slot_size,
             num_heads=self.num_heads, norm_type="mean",
-            weight_init=weight_init)
+            epsilon=epsilon, weight_init=weight_init)
 
-        # self.gru = nn.GRUCell(slot_size, slot_size, bias=False)
-        # init_fn[weight_init['param']](self.gru.weight_ih)
-        # init_fn[weight_init['linear_b']](self.gru.bias_ih)
-        # init_fn[weight_init['linear_b']](self.gru.bias_hh)
+        # gru
         self.gru = misc.myGRUCell(slot_size, slot_size, weight_init=weight_init)
 
         if self.mlp_size is not None:
@@ -86,14 +81,15 @@ class SlotAttention(nn.Module):
         """Slot Attention module forward pass."""
         del padding_mask # Unused.
 
-        b, n, d = slots.shape
+        B, O, D = slots.shape
+        _, L, M = inputs.shape
 
         # inputs.shape = (b, n_inputs, input_size).
         inputs = self.layernorm_input(inputs)
-        # k.shape = (b, n_inputs, num_heads, qkv_size).
-        k = torch.einsum("bkm,hmd->bkhd", inputs, self.w_k)
-        # v.shape = (b, n_inputs, num_heads, qkv_size).
-        v = torch.einsum("bkm,hmd->bkhd", inputs, self.w_v)
+        # k.shape = (b, n_inputs, num_heads, head_dim).
+        k = self.dense_k(inputs).view(B, L, self.num_heads, self.head_dim)
+        # v.shape = (b, n_inputs, num_heads, head_dim).
+        v = self.dense_v(inputs).view(B, L, self.num_heads, self.head_dim)
 
         # Multiple rounds of attention.
         for _ in range(self.num_iterations):
@@ -101,14 +97,14 @@ class SlotAttention(nn.Module):
             # Inverted dot-product attention.
             slots_n = self.layernorm_q(slots)
             ## q.shape = (b, num_objects, num_heads, qkv_size).
-            q = torch.einsum("bqs,hsd->bqhd", slots_n, self.w_q)
+            q = self.dense_q(slots_n).view(B, O, self.num_heads, self.head_dim)
             updates, attn = self.inverted_attention(query=q, key=k, value=v)
 
             # Recurrent update.
             slots = self.gru(
-                updates.reshape(-1, d), 
-                slots.reshape(-1, d))
-            slots = slots.reshape(b, -1, d)
+                updates.reshape(-1, D), 
+                slots.reshape(-1, D))
+            slots = slots.reshape(B, -1, D)
 
             # Feedforward block with pre-normalization.
             if self.mlp_size is not None:
@@ -119,11 +115,13 @@ class SlotAttention(nn.Module):
     def compute_attention(self, slots, inputs):
         """Slot Attention without GRU and iteration."""
                 # inputs.shape = (b, n_inputs, input_size).
+        B, O, D = slots.shape
+        _, L, M = inputs.shape
         inputs = self.layernorm_input(inputs)
         slots = self.layernorm_q(slots)
-        k = torch.einsum("bkm,hmd->bkhd", inputs, self.w_k)
-        v = torch.einsum("bkm,hmd->bkhd", inputs, self.w_v)
-        q = torch.einsum("bqs,hsd->bqhd", slots, self.w_q)
+        q = self.dense_q(slots).view(B, O, self.num_heads, self.head_dim)
+        k = self.dense_k(inputs).view(B, L, self.num_heads, self.head_dim)
+        v = self.dense_v(inputs).view(B, L, self.num_heads, self.head_dim)
         updated_slots, attn = self.inverted_attention(query=q, key=k, value=v)
 
         # updated_slots [B Q S], attn TODO: shape
@@ -147,11 +145,16 @@ class InvertedDotProductAttention(nn.Module):
 
         assert num_heads >= 1 and isinstance(num_heads, int)
 
+        self.input_size = input_size
+        self.output_size = output_size
         self.norm_type = norm_type
+        self.num_heads = num_heads
         self.multi_head = True if num_heads > 1 else False
         self.epsilon = epsilon
         self.dtype = dtype
         self.weight_init = weight_init
+        # other definitions
+        self.head_dim = input_size // self.num_heads
 
         # submodules
         self.attn_fn = GeneralizedDotProductAttention(
@@ -160,17 +163,16 @@ class InvertedDotProductAttention(nn.Module):
             epsilon=self.epsilon,
             dtype=self.dtype)
         if self.multi_head:
-            self.w_o = nn.Parameter(torch.Tensor(num_heads, input_size, output_size))
-            # nn.init.xavier_uniform_(self.w_o)
-            init_fn[weight_init['param']](self.w_o)
+            self.dense_o = nn.Linear(input_size, output_size, bias=False)
+            init_fn[weight_init['linear_w']](self.dense_o.weight)
         if self.norm_type == "layernorm":
             self.layernorm = nn.LayerNorm(output_size, eps=1e-6)
 
-    def forward(self, query: Array, key: Array, value: Array,
-                train: bool = False) -> Array:
+    def forward(self, query: Array, key: Array, value: Array) -> Array:
         """Computes inverted dot-product attention.
 
         Args:
+            qk_features = [num_heads, head_dim] = qkv_dim
             query: Queries with shape of `[batch, q_num, qk_features]`.
             key: Keys with shape of `[batch, kv_num, qk_features]`.
             value: Values with shape of `[batch, kv_num, v_features]`.
@@ -179,14 +181,14 @@ class InvertedDotProductAttention(nn.Module):
         Returns:
             Output of shape `[batch, n_queries, v_features]`
         """
-        del train # Unused.
+        B, Q = query.shape[:2]
 
         # Apply attention mechanism
         output, attn = self.attn_fn(query=query, key=key, value=value)
 
         if self.multi_head:
             # Multi-head aggregation. Equivalent to concat + dense layer.
-            output = torch.einsum("bqhd,hds->bqs", output, self.w_o)
+            output = self.dense_o(output.view(B, Q, self.input_size)).view(B, Q, self.output_size)
         else:
             # Remove head dimension.
             output = output.squeeze(-2)
@@ -260,7 +262,7 @@ class GeneralizedDotProductAttention(nn.Module):
         query = query / (qk_features ** 0.5) # torch.sqrt(qk_features)
 
         # attn.shape = (batch..., num_heads, q_num, kv_num)
-        attn = torch.einsum("bqhd,bkhd->bhqk", query, key) # TODO: verify if shapes are correct
+        attn = torch.matmul(query.permute(0, 2, 1, 3), key.permute(0, 2, 3, 1)) # bhqd @ bhdk -> bhqk
 
         if self.inverted_attn:
             attention_dim = -2 # Query dim
