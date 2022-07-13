@@ -50,6 +50,10 @@ class SlotAttention(nn.Module):
         self.head_dim = qkv_size // self.num_heads
 
         # shared modules
+        ## gru
+        self.gru = misc.myGRUCell(slot_size, slot_size, weight_init=weight_init)
+
+        ## weights
         self.dense_q = nn.Linear(slot_size, qkv_size, bias=False)
         self.dense_k = nn.Linear(input_size, qkv_size, bias=False)
         self.dense_v = nn.Linear(input_size, qkv_size, bias=False)
@@ -57,19 +61,17 @@ class SlotAttention(nn.Module):
         init_fn[weight_init['linear_w']](self.dense_k.weight)
         init_fn[weight_init['linear_w']](self.dense_v.weight)
 
-        # layernorms
+        ## layernorms
         self.layernorm_q = nn.LayerNorm(qkv_size, eps=1e-6)
         self.layernorm_input = nn.LayerNorm(input_size, eps=1e-6)
 
-        # attention
+        ## attention
         self.inverted_attention = InvertedDotProductAttention(
             input_size=qkv_size, output_size=slot_size,
             num_heads=self.num_heads, norm_type="mean",
             epsilon=epsilon, weight_init=weight_init)
 
-        # gru
-        self.gru = misc.myGRUCell(slot_size, slot_size, weight_init=weight_init)
-
+        ## output transform
         if self.mlp_size is not None:
             self.mlp = misc.MLP(
                 input_size=slot_size, hidden_size=self.mlp_size,
