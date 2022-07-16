@@ -93,8 +93,9 @@ def lecun_uniform_(tensor, gain=1.):
 
 def lecun_normal_(tensor, gain=1.):
     fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
-    std = gain * math.sqrt(1.0 / float(fan_in))
-    return nn.init._no_grad_normal_(tensor, 0., std)
+    std = gain * (math.sqrt(1.0 / float(fan_in)) / .87962566103423978)
+    # return nn.init._no_grad_normal_(tensor, 0., std)
+    return torch.nn.init._no_grad_trunc_normal_(tensor, 0, std, -2, 2)
 
 init_fn = {
     'xavier_uniform': nn.init.xavier_uniform_,
