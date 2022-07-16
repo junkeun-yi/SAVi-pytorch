@@ -286,14 +286,14 @@ class PositionEmbedding(nn.Module):
 		self.weight_init = weight_init
 
 		# submodules defined in module.
-		self.pos_embedding = nn.Parameter(self._make_pos_embedding_tensor(input_shape),
-										  requires_grad=self.trainable_pos_embedding)
 		if self.update_type == "project_add":
 			self.project_add_dense = nn.Linear(self.pos_embedding.shape[-1], input_shape[-1])
 			# nn.init.xavier_uniform_(self.project_add_dense.weight)
 			init_fn[weight_init['linear_w']](self.project_add_dense.weight)
 			init_fn[weight_init['linear_b']](self.project_add_dense.bias)
-
+		# positional embedding parameter
+		self.pos_embedding = nn.Parameter(self._make_pos_embedding_tensor(input_shape),
+										  requires_grad=self.trainable_pos_embedding)
 
 	# TODO: validate
 	def _make_pos_embedding_tensor(self, input_shape):

@@ -86,17 +86,21 @@ def flatten_named_dicttree(metrics_res: DictTree, sep: str = "/"):
 
 def lecun_uniform_(tensor, gain=1.):
     fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
-    std = gain * math.sqrt(1.0 / float(fan_in))
-    a = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
+    var = gain / float(fan_in)
+    a = math.sqrt(3 * var)
     return nn.init._no_grad_uniform_(tensor, -a, a)
 
 
 def lecun_normal_(tensor, gain=1.):
     fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
     # constant is stddev of standard normal truncated to (-2, 2)
-    std = gain * (math.sqrt(1.0 / float(fan_in)) / .87962566103423978)
+    var = gain / float(fan_in)
+    std = math.sqrt(var) / .87962566103423978
     # return nn.init._no_grad_normal_(tensor, 0., std)
-    return torch.nn.init._no_grad_trunc_normal_(tensor, 0, std, -2, 2)
+    kernel = torch.nn.init._no_grad_trunc_normal_(tensor, 0, 1, -2, 2) * std
+    with torch.no_grad():
+        tensor[:] = kernel[:]
+    return tensor
 
 init_fn = {
     'xavier_uniform': nn.init.xavier_uniform_,
