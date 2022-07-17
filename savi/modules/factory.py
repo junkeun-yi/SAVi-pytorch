@@ -188,6 +188,7 @@ def build_model(args):
 				nn.ConvTranspose2d(64, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1)),
 				nn.ConvTranspose2d(64, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1)),
 				nn.ConvTranspose2d(64, 64, (5, 5), (2, 2), padding=(2, 2), output_padding=(1, 1))]),
+			transpose_modules=[True, True, True, True],
 			weight_init=weight_init)
 		decoder = modules.SpatialBroadcastDecoder(
 			resolution=(8,8), # Update if data resolution or strides change.
