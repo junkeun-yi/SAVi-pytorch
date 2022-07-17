@@ -100,6 +100,8 @@ def get_args():
 		'linear_w': args.init_weight,
 		'linear_b': args.init_bias,
 		'conv_w': args.init_weight,
+		# convtranspose kernel shape requires special handling.
+		'convtranspose_w': "lecun_normal_fan_out" if args.init_weight == 'lecun_normal' else args.init_weight,
 		'conv_b': args.init_bias}
 	# Training
 	args.gpu = [int(i) for i in args.gpu.split(',')]

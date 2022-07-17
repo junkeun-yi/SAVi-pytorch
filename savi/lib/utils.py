@@ -91,16 +91,32 @@ def lecun_uniform_(tensor, gain=1.):
     return nn.init._no_grad_uniform_(tensor, -a, a)
 
 
-def lecun_normal_(tensor, gain=1.):
+def lecun_normal_(tensor, gain=1., mode="fan_in"):
     fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(tensor)
+    if mode == "fan_in":
+        scale_mode = fan_in
+    elif mode == "fan_out":
+        scale_mode = fan_out
+    else:
+        raise NotImplementedError
+    var = gain / float(scale_mode)
     # constant is stddev of standard normal truncated to (-2, 2)
-    var = gain / float(fan_in)
     std = math.sqrt(var) / .87962566103423978
     # return nn.init._no_grad_normal_(tensor, 0., std)
     kernel = torch.nn.init._no_grad_trunc_normal_(tensor, 0, 1, -2, 2) * std
     with torch.no_grad():
         tensor[:] = kernel[:]
     return tensor
+
+def lecun_normal_fan_out_(tensor, gain=1.):
+    return lecun_normal_(tensor, gain=gain, mode="fan_out")
+
+def lecun_normal_convtranspose_(tensor, gain=1.):
+    # for some reason, the convtranspose weights are [in_channels, out_channels, kernel, kernel]
+    # but the _calculate_fan_in_and_fan_out treats dim 1 as fan_in and dim 0 as fan_out.
+    # so, for convolution weights, have to use fan_out instead of fan_in
+    # which is actually using fan_in instead of fan_out
+    return lecun_normal_fan_out_(tensor, gain=gain)
 
 init_fn = {
     'xavier_uniform': nn.init.xavier_uniform_,
@@ -109,6 +125,7 @@ init_fn = {
     'kaiming_normal': nn.init.kaiming_normal_,
     'lecun_uniform': lecun_uniform_,
     'lecun_normal': lecun_normal_,
+    'lecun_normal_fan_out': lecun_normal_fan_out_,
     'ones': nn.init.ones_,
     'zeros': nn.init.zeros_,
     'default': lambda x: x}

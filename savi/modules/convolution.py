@@ -160,6 +160,7 @@ class CNN2(nn.Module):
 
     def __init__(self,
                  conv_modules: nn.ModuleList,
+                 transpose_modules = None,
                  activation_fn: nn.Module = nn.ReLU,
                  norm_type: Optional[str] = None,
                  output_size: Optional[str] = None,
@@ -167,6 +168,7 @@ class CNN2(nn.Module):
                 ):
         super().__init__()
 
+        self.transpose_modules = None
         self.activation = activation_fn
         self.norm_type = norm_type
         self.output_size = output_size
@@ -175,6 +177,15 @@ class CNN2(nn.Module):
 
         # submodules
         num_layers = len(conv_modules)
+
+        # check if there are transposed convolutions (needed for weight init)
+        if transpose_modules is not None:
+            assert len(transpose_modules) == num_layers, (
+                "need to specify which modules are transposed convolutions.")
+        else:
+            transpose_modules = [False for _ in range(num_layers)]
+            self.transpose_modules = transpose_modules
+        init_map = {True: 'convtranspose_w', False: 'conv_w'}
 
         if self.norm_type:
             assert self.norm_type in {"batch", "group", "instance", "layer"}, (
@@ -196,7 +207,7 @@ class CNN2(nn.Module):
             ### Conv
             name = f"conv_{i}"
             conv = conv_modules[i]
-            init_fn[weight_init['conv_w']](conv.weight)
+            init_fn[weight_init[init_map[transpose_modules[i]]]](conv.weight)
             if conv.bias is not None:
                 init_fn[weight_init['conv_b']](conv.bias)
             self.cnn_layers.add_module(name, conv)
