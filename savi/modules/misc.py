@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import math
 
 import savi.lib.metrics as metrics
 import savi.lib.metrics_jax as metrics_jax
@@ -178,9 +179,15 @@ class myGRUCell(nn.Module):
 		if self.weight_init is not None:
 			weight_init = init_fn[self.weight_init['linear_w']]
 			bias_init = init_fn[self.weight_init['linear_b']]
-		else:
-			weight_init = nn.init.xavier_normal_
-			bias_init = nn.init.zeros_
+		elif self.weight_init is None:
+			self.weight_init = {'linear_w': 'default', 'linear_b': 'default'}
+		if self.weight_init['linear_w'] == 'default':
+			stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
+			weight_init = lambda weight: nn.init.uniform_(weight, -stdv, stdv)
+		if self.weight_init['linear_b'] == 'default':
+			stdv = 1.0 / math.sqrt(self.hidden_size) if self.hidden_size > 0 else 0
+			bias_init = lambda weight: nn.init.uniform_(weight, -stdv, stdv)
+		# used to just init them as xavier normal and zeros but changed to default gru init
 		# input weights
 		weight_init(self.dense_ir.weight)
 		bias_init(self.dense_ir.bias)
