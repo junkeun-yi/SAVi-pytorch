@@ -81,7 +81,7 @@ def get_args():
 	# adrg('--shuffle_buffer_size', 64, help="should be batch_size")
 
 	# Model
-	adrg('--max_instances', 10, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
+	adrg('--max_instances', 23, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
 	adrg('--model_size', 'small', help="How to prepare data and model architecture.")
 	adrg('--model_type', 'savi', help="model type")
 	parser.add_argument('--init_weight', default='lecun_normal', help='weight init')
@@ -392,7 +392,7 @@ def run(args):
 	print("{}".format(args).replace(', ', ',\n'))
 
 	if args.wandb:
-		wandb.init(project="savi", name=args.exp, group=args.group)
+		wandb.init(project="savi_new", name=args.exp, group=args.group)
 	# TODO: tensorboard or csv
 
 	device = torch.device(args.gpu[0])
