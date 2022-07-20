@@ -168,7 +168,7 @@ class CNN2(nn.Module):
                 ):
         super().__init__()
 
-        self.transpose_modules = None
+        self.transpose_modules = transpose_modules
         self.activation = activation_fn
         self.norm_type = norm_type
         self.output_size = output_size
