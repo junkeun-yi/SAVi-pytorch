@@ -84,8 +84,8 @@ def get_args():
 	adrg('--max_instances', 23, int, help="Number of slots") # For Movi-A,B,C, only up to 10. for MOVi-D,E, up to 23.
 	adrg('--model_size', 'small', help="How to prepare data and model architecture.")
 	adrg('--model_type', 'savi', help="model type")
-	parser.add_argument('--init_weight', default='lecun_normal', help='weight init')
-	parser.add_argument('--init_bias', default='zeros', help='bias init')
+	parser.add_argument('--init_weight', default='default', help='weight init')
+	parser.add_argument('--init_bias', default='default', help='bias init')
 
 	# Evaluation
 	adrg('--eval_slice_size', 6, int)
