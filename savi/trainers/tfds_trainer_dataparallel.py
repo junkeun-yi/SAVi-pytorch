@@ -388,12 +388,12 @@ def evaluate(data_loader, model, criterion, evaluator, device, args, name="test"
 
 def run(args):
 
-	print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
-	print("{}".format(args).replace(', ', ',\n'))
-
 	if args.wandb:
 		wandb.init(project="savi_new", name=args.exp, group=args.group)
 	# TODO: tensorboard or csv
+
+	print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
+	print("{}".format(args).replace(', ', ',\n'))
 
 	device = torch.device(args.gpu[0])
 
